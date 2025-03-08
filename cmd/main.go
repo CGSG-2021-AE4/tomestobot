@@ -41,7 +41,7 @@ func mainRun() error {
 	log.Print(deals)
 
 	if len(deals) == 0 {
-		return fmt.Errorf("No deals")
+		return fmt.Errorf("no deals")
 	}
 
 	// Get tasks for deal
@@ -50,6 +50,11 @@ func mainRun() error {
 		return fmt.Errorf("list deal tasks: %w", err)
 	}
 	log.Print(tasks)
+
+	// Leave a comment
+	if err := u.AddCommentToDeal(deals[0].Id, "Another test comment and now via golang"); err != nil {
+		return fmt.Errorf("add comment to deal: %w", err)
+	}
 
 	return nil
 }

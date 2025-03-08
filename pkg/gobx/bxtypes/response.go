@@ -29,3 +29,5 @@ func (resp *ResponseError) Error() string {
 type ResTasksTaskList struct {
 	Tasks []Task `json:"tasks"`
 }
+
+type ResCrmTimelineCommentAdd Id // Id of added comment

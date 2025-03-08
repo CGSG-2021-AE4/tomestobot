@@ -2,6 +2,7 @@ package bx
 
 import (
 	"fmt"
+	"log"
 
 	"tomestobot/pkg/gobx/bxclient"
 	"tomestobot/pkg/gobx/bxtypes"
@@ -39,7 +40,31 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 }
 func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
 
-	return fmt.Errorf("not implemented yet")
+	// Make request
+	resp, err := u.bx.Do(
+		"crm.timeline.comment.add",
+		bxtypes.ReqCrmTimelineCommentAdd{
+			Fields: bxtypes.ReqCrmTimelineCommentAddFields{
+				EntityId:   dealId,
+				EntityType: "deal",
+				AuthorId:   u.id,
+				Comment:    comment,
+			},
+		},
+		&bxtypes.Response[bxtypes.ResCrmTimelineCommentAdd]{})
+
+	// Check for result to be valid
+	if err != nil {
+		return fmt.Errorf("during request: %w", err)
+	}
+	res, ok := resp.(*bxtypes.Response[bxtypes.ResCrmTimelineCommentAdd])
+	if !ok {
+		return fmt.Errorf("failed to parse response")
+	}
+
+	log.Print(res.Result)
+
+	return nil
 }
 func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 	// Make request
