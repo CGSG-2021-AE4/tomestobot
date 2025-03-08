@@ -40,5 +40,16 @@ func mainRun() error {
 	}
 	log.Print(deals)
 
+	if len(deals) == 0 {
+		return fmt.Errorf("No deals")
+	}
+
+	// Get tasks for deal
+	tasks, err := u.ListDealTasks(deals[0].Id)
+	if err != nil {
+		return fmt.Errorf("list deal tasks: %w", err)
+	}
+	log.Print(tasks)
+
 	return nil
 }

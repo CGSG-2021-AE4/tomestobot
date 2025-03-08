@@ -2,7 +2,7 @@ module tomestobot
 
 go 1.22.5
 
-require github.com/CGSG-2021-AE4/gobx v0.0.0
+require github.com/CGSG-2021-AE4/gobx v0.1.0
 
 require (
 	golang.org/x/net v0.33.0 // indirect
