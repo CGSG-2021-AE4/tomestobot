@@ -39,7 +39,6 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 	return res.Result, nil
 }
 func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
-
 	// Make request
 	resp, err := u.bx.Do(
 		"crm.timeline.comment.add",
@@ -93,7 +92,19 @@ func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 }
 
 func (u *bxUser) CompleteTask(taskId bxtypes.Id) error {
-	return fmt.Errorf("not implemented yet")
+	// Make request
+	_, err := u.bx.Do(
+		"tasks.task.complete",
+		bxtypes.ReqTasksTaskComplete{
+			TaskId: taskId,
+		},
+		&bxtypes.Response[any]{})
+
+	// Check for result to be valid
+	if err != nil {
+		return fmt.Errorf("during request: %w", err)
+	}
+	return nil
 }
 
 func (u *bxUser) GetId() bxtypes.Id {

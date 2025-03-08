@@ -51,6 +51,15 @@ func mainRun() error {
 	}
 	log.Print(tasks)
 
+	// if len(tasks) == 0 {
+	// 	return fmt.Errorf("no tasks")
+	// }
+
+	// Complete task
+	// if err := u.CompleteTask(tasks[0].Id); err != nil {
+	// 	return fmt.Errorf("complete task: %w", err)
+	// }
+
 	// Leave a comment
 	// if err := u.AddCommentToDeal(deals[0].Id, "Another test comment and now via golang"); err != nil {
 	// 	return fmt.Errorf("add comment to deal: %w", err)
