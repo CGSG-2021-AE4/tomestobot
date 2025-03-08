@@ -34,9 +34,11 @@ type ReqCrmTimelineCommentAdd struct {
 }
 
 type ReqTasksTaskList struct {
-	ReqArrayParams
-	Limit int `json:"LIMIT"`
-	Start int `json:"START"`
+	Select []string          `json:"select"`
+	Order  map[string]string `json:"order"`
+	Filter map[string]string `json:"filter"`
+	Limit  int               `json:"limit"`
+	Start  int               `json:"start"`
 }
 
 type ReqTasksTaskComplete struct {

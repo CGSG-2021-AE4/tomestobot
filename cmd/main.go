@@ -52,9 +52,9 @@ func mainRun() error {
 	log.Print(tasks)
 
 	// Leave a comment
-	if err := u.AddCommentToDeal(deals[0].Id, "Another test comment and now via golang"); err != nil {
-		return fmt.Errorf("add comment to deal: %w", err)
-	}
+	// if err := u.AddCommentToDeal(deals[0].Id, "Another test comment and now via golang"); err != nil {
+	// 	return fmt.Errorf("add comment to deal: %w", err)
+	// }
 
 	return nil
 }

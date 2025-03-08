@@ -24,10 +24,37 @@ type Deal struct {
 	StageId    string `json:"STAGE_ID"`
 }
 
+// Task status type
+
+type TaskState int
+
+const (
+	TaskStateNew = TaskState(iota + 1)
+	TaskStatePending
+	TaskStateInProgress
+	TaskStateSupposedlyCompleted
+	TaskStateCompleted
+	TaskStateDeferred
+	TaskStateDeclined
+)
+
+func (s TaskState) String() string {
+	return strconv.Itoa(int(s))
+}
+
+func (s *TaskState) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' { // Because in Bitrix' responses id is sometimes number sometimes string...!?
+		b = b[1 : len(b)-1]
+	}
+	sn, err := strconv.Atoi(string(b))
+	*s = TaskState(sn)
+	return err
+}
+
 type Task struct {
-	Id     Id     `json:"ID"`
-	Title  string `json:"TITLE"`
-	Status string `json:"STATUS"`
+	Id     Id        `json:"ID"`
+	Title  string    `json:"TITLE"`
+	Status TaskState `json:"STATUS"`
 }
 
 // Resource id type

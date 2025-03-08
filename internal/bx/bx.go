@@ -18,7 +18,7 @@ func New(crmUrl string, botUserId int, hook string) (api.BxWrapper, error) {
 
 	// For debug
 	// c.SetInsecureSSL(true)
-	// c.SetDebug(true)
+	c.SetDebug(true)
 
 	return &bxWrapper{
 		client: c,

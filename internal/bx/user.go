@@ -70,13 +70,13 @@ func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 	// Make request
 	resp, err := u.bx.Do(
 		"tasks.task.list",
-		bxtypes.ReqCrmDealList{
-			ReqArrayParams: bxtypes.ReqArrayParams{
-				Select: []string{"ID", "TITLE", "STATUS"},
-				Filter: map[string]string{
-					"UF_CRM_TASK": "D_" + dealId.String(),
-				},
+		bxtypes.ReqTasksTaskList{
+			Select: []string{"ID", "TITLE", "STATUS", "UF_CRM_TASK"},
+			Filter: map[string]string{
+				"<REAL_STATUS": "5", // Now there are only incomplete ones TODO
+				"UF_CRM_TASK":  "D_" + dealId.String(),
 			},
+			Order: map[string]string{},
 		},
 		&bxtypes.Response[bxtypes.ResTasksTaskList]{})
 
