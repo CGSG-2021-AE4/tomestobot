@@ -2,7 +2,6 @@ package bx
 
 import (
 	"fmt"
-	"os"
 
 	"tomestobot/api"
 
@@ -19,7 +18,7 @@ func New(crmUrl string, botUserId int, hook string) (api.BxWrapper, error) {
 
 	// For debug
 	// c.SetInsecureSSL(true)
-	c.SetDebug(true)
+	// c.SetDebug(true)
 
 	return &bxWrapper{
 		client: c,
@@ -32,7 +31,7 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 		"user.get",
 		types.ReqUserGet{
 			Filter: map[string]string{
-				"PERSONAL_MOBILE": os.Getenv("TEST_PHONE"),
+				"PERSONAL_MOBILE": phone,
 			},
 		},
 		&types.ArrayResponse[types.User]{})
@@ -54,8 +53,8 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 
 	// Create new user
 	return &bxUser{
-		bx:     b,
-		userId: res.Result[0].Id,
+		bx: b.client,
+		id: res.Result[0].Id,
 	}, nil
 }
 

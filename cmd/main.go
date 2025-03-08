@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"tomestobot/internal/bx"
+	bxwrapper "tomestobot/internal/bx"
 )
 
 func main() {
@@ -21,11 +21,24 @@ func mainRun() error {
 	if err != nil {
 		return fmt.Errorf("invalid user id env variable: %w", err)
 	}
-	bx, err := bx.New(os.Getenv("BX_URL"), userId, os.Getenv("BX_TOKEN"))
+	bx, err := bxwrapper.New(os.Getenv("BX_URL"), userId, os.Getenv("BX_TOKEN"))
 	if err != nil {
 		return fmt.Errorf("bx creation: %w", err)
 	}
 
-	_ = bx
+	// Auth user
+	u, err := bx.AuthUserByPhone(os.Getenv("TEST_PHONE"))
+	if err != nil {
+		return fmt.Errorf("auth user by phone: %w", err)
+	}
+	log.Print(u.GetId())
+
+	// Get deals
+	deals, err := u.ListDeals()
+	if err != nil {
+		return fmt.Errorf("list deals: %w", err)
+	}
+	log.Print(deals)
+
 	return nil
 }
