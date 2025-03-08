@@ -3,63 +3,63 @@ package bx
 import (
 	"fmt"
 
-	"github.com/CGSG-2021-AE4/gobx/client"
-	"github.com/CGSG-2021-AE4/gobx/types"
+	"tomestobot/pkg/gobx/bxclient"
+	"tomestobot/pkg/gobx/bxtypes"
 )
 
 type bxUser struct {
-	bx client.BxClient
-	id types.Id
+	bx bxclient.BxClient
+	id bxtypes.Id
 }
 
-func (u *bxUser) ListDeals() ([]types.Deal, error) {
+func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 	// Make request
 	resp, err := u.bx.Do(
 		"crm.deal.list",
-		types.ReqCrmDealList{
-			ReqArrayParams: types.ReqArrayParams{
+		bxtypes.ReqCrmDealList{
+			ReqArrayParams: bxtypes.ReqArrayParams{
 				Select: []string{"ID", "TITLE", "TYPE_ID", "CATEGORY_ID", "STAGE_ID"},
 				Filter: map[string]string{
 					// What is here TODO
 				},
 			},
 		},
-		&types.ArrayResponse[types.Deal]{})
+		&bxtypes.ArrayResponse[bxtypes.Deal]{})
 
 	// Check for result to be valid
 	if err != nil {
 		return nil, fmt.Errorf("during request: %w", err)
 	}
-	res, ok := resp.(*types.ArrayResponse[types.Deal])
+	res, ok := resp.(*bxtypes.ArrayResponse[bxtypes.Deal])
 	if !ok {
 		return nil, fmt.Errorf("failed to parse response")
 	}
 
 	return res.Result, nil
 }
-func (u *bxUser) AddCommentToDeal(dealId types.Id, comment string) error {
+func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
 
 	return fmt.Errorf("not implemented yet")
 }
-func (u *bxUser) ListDealTasks(dealId types.Id) ([]types.Task, error) {
+func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 	// Make request
 	resp, err := u.bx.Do(
 		"tasks.task.list",
-		types.ReqCrmDealList{
-			ReqArrayParams: types.ReqArrayParams{
+		bxtypes.ReqCrmDealList{
+			ReqArrayParams: bxtypes.ReqArrayParams{
 				Select: []string{"ID", "TITLE", "STATUS"},
 				Filter: map[string]string{
 					"UF_CRM_TASK": "D_" + dealId.String(),
 				},
 			},
 		},
-		&types.Response[types.ResTasksTaskList]{})
+		&bxtypes.Response[bxtypes.ResTasksTaskList]{})
 
 	// Check for result to be valid
 	if err != nil {
 		return nil, fmt.Errorf("during request: %w", err)
 	}
-	res, ok := resp.(*types.Response[types.ResTasksTaskList])
+	res, ok := resp.(*bxtypes.Response[bxtypes.ResTasksTaskList])
 	if !ok {
 		return nil, fmt.Errorf("failed to parse response")
 	}
@@ -67,11 +67,11 @@ func (u *bxUser) ListDealTasks(dealId types.Id) ([]types.Task, error) {
 	return res.Result.Tasks, nil
 }
 
-func (u *bxUser) CompleteTask(taskId types.Id) error {
+func (u *bxUser) CompleteTask(taskId bxtypes.Id) error {
 	return fmt.Errorf("not implemented yet")
 }
 
-func (u *bxUser) GetId() types.Id {
+func (u *bxUser) GetId() bxtypes.Id {
 	return u.id
 }
 

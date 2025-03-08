@@ -3,15 +3,15 @@ package api
 import (
 	"io"
 
-	"github.com/CGSG-2021-AE4/gobx/types"
+	"tomestobot/pkg/gobx/bxtypes"
 )
 
 type BxUser interface {
-	ListDeals() ([]types.Deal, error)                       // Deals that are accessable for this user. Later add stage as filter
-	AddCommentToDeal(dealId types.Id, comment string) error // Add comment to this deal
-	ListDealTasks(dealId types.Id) ([]types.Task, error)    // List tasks that are attached to this deal and are not complete
-	CompleteTask(taskId types.Id) error                     // Compete the task
-	GetId() types.Id                                        // Id getter
+	ListDeals() ([]bxtypes.Deal, error)                       // Deals that are accessable for this user. Later add stage as filter
+	AddCommentToDeal(dealId bxtypes.Id, comment string) error // Add comment to this deal
+	ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error)  // List tasks that are attached to this deal and are not complete
+	CompleteTask(taskId bxtypes.Id) error                     // Compete the task
+	GetId() bxtypes.Id                                        // Id getter
 	io.Closer
 }
 

@@ -5,16 +5,16 @@ import (
 
 	"tomestobot/api"
 
-	"github.com/CGSG-2021-AE4/gobx/client"
-	"github.com/CGSG-2021-AE4/gobx/types"
+	"tomestobot/pkg/gobx/bxclient"
+	"tomestobot/pkg/gobx/bxtypes"
 )
 
 type bxWrapper struct {
-	client client.BxClient
+	client bxclient.BxClient
 }
 
 func New(crmUrl string, botUserId int, hook string) (api.BxWrapper, error) {
-	c := client.New(crmUrl, botUserId, hook)
+	c := bxclient.New(crmUrl, botUserId, hook)
 
 	// For debug
 	// c.SetInsecureSSL(true)
@@ -29,18 +29,18 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 	// Make request
 	resp, err := b.client.Do(
 		"user.get",
-		types.ReqUserGet{
+		bxtypes.ReqUserGet{
 			Filter: map[string]string{
 				"PERSONAL_MOBILE": phone,
 			},
 		},
-		&types.ArrayResponse[types.User]{})
+		&bxtypes.ArrayResponse[bxtypes.User]{})
 
 	// Check for result to be valid
 	if err != nil {
 		return nil, fmt.Errorf("during request: %w", err)
 	}
-	res, ok := resp.(*types.ArrayResponse[types.User])
+	res, ok := resp.(*bxtypes.ArrayResponse[bxtypes.User])
 	if !ok {
 		return nil, fmt.Errorf("failed to parse response")
 	}
