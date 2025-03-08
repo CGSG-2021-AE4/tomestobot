@@ -2,6 +2,7 @@
 .git/
 **/.vscode/
 assets/
+Makefile
 
 # GO
 go.sum
