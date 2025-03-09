@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"tomestobot/internal/bot"
 	bxwrapper "tomestobot/internal/bx"
 )
 
@@ -16,6 +17,14 @@ func main() {
 }
 
 func mainRun() error {
+	bot, err := bot.New(os.Getenv("TG_TOKEN"))
+	if err != nil {
+		return fmt.Errorf("new bot: %w", err)
+	}
+	return bot.Start()
+}
+
+func bxTest() error {
 	// Creating bitrix wrapper
 	userId, err := strconv.Atoi(os.Getenv("BX_USER_ID"))
 	if err != nil {

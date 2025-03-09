@@ -38,6 +38,7 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 
 	return res.Result, nil
 }
+
 func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
 	// Make request
 	resp, err := u.bx.Do(
@@ -65,6 +66,7 @@ func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
 
 	return nil
 }
+
 func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 	// Make request
 	resp, err := u.bx.Do(
