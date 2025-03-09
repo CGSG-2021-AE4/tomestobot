@@ -2,12 +2,11 @@ package bot
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"tomestobot/api"
-	bxwrapper "tomestobot/internal/bx"
 
+	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 	tele "gopkg.in/telebot.v4"
 )
@@ -15,15 +14,15 @@ import (
 var validate = validator.New(validator.WithRequiredStructEnabled())
 
 type BotDescriptor struct {
-	TgBotToken string `validate:"required"`
-	BxDomain   string `validate:"required,fqdn"` // Full Qualified Domain Name
-	BxUserId   int    `validate:"required"`
-	BxHook     string `validate:"required"`
+	TgBotToken string        `validate:"required"`
+	Bx         api.BxWrapper `validate:"required"`
 }
 
 type bot struct {
-	bot *tele.Bot
-	bx  api.BxWrapper
+	logger *log.Logger
+
+	bot *tele.Bot     // Telegram bot API wrapper
+	bx  api.BxWrapper // Bitrix wrapper
 
 	whitelist map[int64]bool         // List of authorized users' IDs
 	sessions  map[int64]*userSession // List of current sessions, sessions will be susspended after some idle time
@@ -33,7 +32,7 @@ type Bot interface {
 	Start() error
 }
 
-func New(descr BotDescriptor) (Bot, error) {
+func New(logger *log.Logger, descr BotDescriptor) (Bot, error) {
 	// Validate descriptor
 	if err := validate.Struct(descr); err != nil {
 		return nil, fmt.Errorf("bot descriptor validation: %w", err)
@@ -49,15 +48,11 @@ func New(descr BotDescriptor) (Bot, error) {
 		return nil, fmt.Errorf("telebot creation: %w", err)
 	}
 
-	// Creating bx wrapper
-	bx, err := bxwrapper.New(descr.BxDomain, descr.BxUserId, descr.BxHook)
-	if err != nil {
-		return nil, fmt.Errorf("bx wrapper creation: %w", err)
-	}
-
 	return &bot{
+		logger: logger,
+
 		bot: telebot,
-		bx:  bx,
+		bx:  descr.Bx,
 
 		whitelist: map[int64]bool{},         // Later will load from a file
 		sessions:  map[int64]*userSession{}, // Map of active sessions
@@ -66,9 +61,8 @@ func New(descr BotDescriptor) (Bot, error) {
 
 func (b *bot) authMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 	return func(c tele.Context) error {
-		log.Print("--- MSG FROM ---")
-		log.Print(c.Sender().ID)
-		log.Print(c.Message().Contact)
+
+		b.logger.Debug("msg", "id", c.Sender().ID)
 
 		// Check that this is private chat
 		// if !c.Chat().Private {
@@ -106,6 +100,8 @@ func (b *bot) setupAuth() {
 			return c.Send("ERROR: contact message is not replied")
 		}
 
+		b.logger.Debug("contact msg", "id", c.Sender().ID, "name", c.Sender().FirstName+" "+c.Sender().LastName, "phone", c.Message().Contact.PhoneNumber)
+
 		// Do auth
 		b.whitelist[c.Sender().ID] = true
 
@@ -123,8 +119,8 @@ func (b *bot) Start() error {
 		return c.Send("Hi")
 	})
 
-	log.Print("Start bot")
+	b.logger.Debug("bot started")
 	b.bot.Start()
-	log.Print("End bot")
+	b.logger.Debug("bot ended")
 	return nil
 }

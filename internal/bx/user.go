@@ -2,7 +2,8 @@ package bx
 
 import (
 	"fmt"
-	"log"
+
+	"github.com/charmbracelet/log"
 
 	"tomestobot/pkg/gobx/bxclient"
 	"tomestobot/pkg/gobx/bxtypes"

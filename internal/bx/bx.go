@@ -7,20 +7,40 @@ import (
 
 	"tomestobot/pkg/gobx/bxclient"
 	"tomestobot/pkg/gobx/bxtypes"
+
+	"github.com/charmbracelet/log"
+	"github.com/go-playground/validator/v10"
 )
 
+var validate = validator.New(validator.WithRequiredStructEnabled())
+
+type BxDescriptor struct {
+	BxDomain string `validate:"required,fqdn"` // Full Qualified Domain Name
+	BxUserId int    `validate:"required"`
+	BxHook   string `validate:"required"`
+}
+
 type bxWrapper struct {
+	logger *log.Logger
+
 	client bxclient.BxClient
 }
 
-func New(crmUrl string, botUserId int, hook string) (api.BxWrapper, error) {
-	c := bxclient.New(crmUrl, botUserId, hook)
+func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
+	// Validate descriptor
+	if err := validate.Struct(descr); err != nil {
+		return nil, fmt.Errorf("bx wrapper descriptor validation: %w", err)
+	}
+
+	// Create bxclient
+	c := bxclient.New(descr.BxDomain, descr.BxUserId, descr.BxHook)
 
 	// For debug
 	// c.SetInsecureSSL(true)
-	c.SetDebug(true)
+	// c.SetDebug(true)
 
 	return &bxWrapper{
+		logger: logger,
 		client: c,
 	}, nil
 }
