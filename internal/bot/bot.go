@@ -3,21 +3,22 @@ package bot
 import (
 	"fmt"
 	"log"
-	"os"
-	"strconv"
 	"time"
 
 	"tomestobot/api"
 	bxwrapper "tomestobot/internal/bx"
 
+	"github.com/go-playground/validator/v10"
 	tele "gopkg.in/telebot.v4"
 )
 
+var validate = validator.New(validator.WithRequiredStructEnabled())
+
 type BotDescriptor struct {
-	TgBotToken string
-	BxUrl      string
-	BxUserId   int
-	BxHook     string
+	TgBotToken string `validate:"required"`
+	BxDomain   string `validate:"required,fqdn"` // Full Qualified Domain Name
+	BxUserId   int    `validate:"required"`
+	BxHook     string `validate:"required"`
 }
 
 type bot struct {
@@ -32,30 +33,30 @@ type Bot interface {
 	Start() error
 }
 
-func New(token string) (Bot, error) {
-	// Creating telebot
-	pref := tele.Settings{
-		Token:  token,
-		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+func New(descr BotDescriptor) (Bot, error) {
+	// Validate descriptor
+	if err := validate.Struct(descr); err != nil {
+		return nil, fmt.Errorf("bot descriptor validation: %w", err)
 	}
 
-	b, err := tele.NewBot(pref)
+	// Creating telebot
+	pref := tele.Settings{
+		Token:  descr.TgBotToken,
+		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+	}
+	telebot, err := tele.NewBot(pref)
 	if err != nil {
 		return nil, fmt.Errorf("telebot creation: %w", err)
 	}
 
 	// Creating bx wrapper
-	userId, err := strconv.Atoi(os.Getenv("BX_USER_ID"))
+	bx, err := bxwrapper.New(descr.BxDomain, descr.BxUserId, descr.BxHook)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user id env variable: %w", err)
-	}
-	bx, err := bxwrapper.New(os.Getenv("BX_URL"), userId, os.Getenv("BX_TOKEN"))
-	if err != nil {
-		return nil, fmt.Errorf("bx creation: %w", err)
+		return nil, fmt.Errorf("bx wrapper creation: %w", err)
 	}
 
 	return &bot{
-		bot: b,
+		bot: telebot,
 		bx:  bx,
 
 		whitelist: map[int64]bool{},         // Later will load from a file

@@ -17,7 +17,19 @@ func main() {
 }
 
 func mainRun() error {
-	bot, err := bot.New(os.Getenv("TG_TOKEN"))
+	userId, err := strconv.Atoi(os.Getenv("BX_USER_ID"))
+	if err != nil {
+		return fmt.Errorf("invalid user id env variable: %w", err)
+	}
+
+	descr := bot.BotDescriptor{
+		TgBotToken: os.Getenv("TG_TOKEN"),
+		BxDomain:   os.Getenv("BX_DOMAIN"),
+		BxUserId:   userId,
+		BxHook:     os.Getenv("BX_HOOK"),
+	}
+
+	bot, err := bot.New(descr)
 	if err != nil {
 		return fmt.Errorf("new bot: %w", err)
 	}
