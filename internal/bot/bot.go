@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"tomestobot/api"
+	"tomestobot/pkg/gobx/bxtypes"
 
 	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
@@ -21,11 +22,12 @@ type BotDescriptor struct {
 type bot struct {
 	logger *log.Logger
 
-	bot *tele.Bot     // Telegram bot API wrapper
-	bx  api.BxWrapper // Bitrix wrapper
+	bot       *tele.Bot     // Telegram bot API wrapper
+	authGroup *tele.Group   // Telebot group for commands that require authorization - has auth middle
+	bx        api.BxWrapper // Bitrix wrapper
 
-	whitelist map[int64]bool         // List of authorized users' IDs
-	sessions  map[int64]*userSession // List of current sessions, sessions will be susspended after some idle time
+	knowenList map[int64]int64        // List of knowen users' IDs, so they do not have to share their contact every time
+	sessions   map[int64]*userSession // List of current sessions, sessions will be susspended after some idle time
 }
 
 type Bot interface {
@@ -48,35 +50,62 @@ func New(logger *log.Logger, descr BotDescriptor) (Bot, error) {
 		return nil, fmt.Errorf("telebot creation: %w", err)
 	}
 
-	return &bot{
+	b := &bot{
 		logger: logger,
 
-		bot: telebot,
-		bx:  descr.Bx,
+		bot:       telebot,
+		authGroup: telebot.Group(),
+		bx:        descr.Bx,
 
-		whitelist: map[int64]bool{},         // Later will load from a file
-		sessions:  map[int64]*userSession{}, // Map of active sessions
-	}, nil
+		knowenList: map[int64]int64{},        // Later will load from a file -- links telegram id with bitrix id
+		sessions:   map[int64]*userSession{}, // Map of active sessions
+	}
+
+	if err := b.setupEndpoints(); err != nil {
+		return nil, fmt.Errorf("bot setup endpoints: %w", err)
+	}
+	return b, nil
 }
 
-func (b *bot) authMiddle(next tele.HandlerFunc) tele.HandlerFunc {
+func (b *bot) Start() error {
+	b.logger.Debug("bot started")
+	b.bot.Start()
+	b.logger.Debug("bot ended")
+	return nil
+}
+
+func (b *bot) setupEndpoints() error {
+	b.authGroup.Use(b.sessionMiddle)
+
+	b.bot.Handle(tele.OnContact, b.onContact) // The method is the only one not in auth group!!!
+
+	b.authGroup.Handle("/start", func(c tele.Context) error {
+		return c.Send("START endpoint")
+	})
+	return nil
+}
+
+// Handles the creation of sessions and authorization of users
+func (b *bot) sessionMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 	return func(c tele.Context) error {
+		// Session does not exist - do auth stuff
+		if _, exists := b.sessions[c.Sender().ID]; !exists {
+			b.logger.Debug("auth user", "id", c.Sender().ID)
+			// Check if chat is suitable for conversation
+			if c.Sender().IsBot {
+				return c.Send("Bots are not allowed")
+			}
 
-		b.logger.Debug("msg", "id", c.Sender().ID)
-
-		// Check that this is private chat
-		// if !c.Chat().Private {
-		// 	return c.Send("Public chats are not allowed")
-		// }
-		// Check that this is not a bot
-		if c.Sender().IsBot {
-			return c.Send("Bots are not allowed")
-		}
-
-		// Check if user id is in whitelist if only it is not a Contact message
-		// TODO change to groups middle
-		if c.Message().Contact == nil && !b.whitelist[c.Sender().ID] {
-			return b.reqContact(c) // Request contact for auth
+			// Check by id else request contact info
+			know, err := b.tryAuthById(c)
+			if err != nil {
+				return fmt.Errorf("try auth by id: %w", err)
+			}
+			if !know { // We do not know the id - need to auth by phone
+				return b.reqContact(c)
+			}
+			// We know user and there was know errors with auth => we authed!
+			// Continue with request
 		}
 		return next(c)
 	}
@@ -91,36 +120,71 @@ func (b *bot) reqContact(c tele.Context) error {
 	return c.Send("Share your contant for auth", r)
 }
 
-func (b *bot) setupAuth() {
-	b.bot.Use(b.authMiddle)
+// OnContact endpoint callback
+func (b *bot) onContact(c tele.Context) error {
+	if _, exists := b.sessions[c.Sender().ID]; !exists {
+		// Session does not exist so we auth
 
-	b.bot.Handle(tele.OnContact, func(c tele.Context) error {
-		// Validate the message
-		if !c.Message().IsReply() {
-			return c.Send("ERROR: contact message is not replied")
+		// Try to auth
+		if err := b.tryAuthByPhone(c); err != nil {
+			return fmt.Errorf("try auth by phone: %w", err)
 		}
-
-		b.logger.Debug("contact msg", "id", c.Sender().ID, "name", c.Sender().FirstName+" "+c.Sender().LastName, "phone", c.Message().Contact.PhoneNumber)
-
-		// Do auth
-		b.whitelist[c.Sender().ID] = true
 
 		// Clear messages
 		b.bot.Delete(c.Message().ReplyTo)
 		b.bot.Delete(c.Message())
-		return c.Send("Thanks")
-	})
+		return c.Send("Successfully authorised(by phone)!!!")
+	}
+
+	b.logger.Warn("got on contact message but user is authorised")
+	return nil
 }
 
-func (b *bot) Start() error {
-	b.setupAuth()
+// Checks if user is familiar(we know his vx id) and if session does not exist it creates it
+// Returns true if we know the user, false if not
+func (b *bot) tryAuthById(c tele.Context) (bool, error) {
+	// Assume session does not exist
+	tgId := c.Sender().ID
+	bxId, wok := b.knowenList[tgId]
 
-	b.bot.Handle("/start", func(c tele.Context) error {
-		return c.Send("Hi")
-	})
+	if wok { // id exists in the list of familiar users and session does not exist
+		u, err := b.bx.AuthUserById(bxtypes.Id(bxId))
+		if err != nil {
+			return true, fmt.Errorf("auth user by id: %w", err)
+		}
+		b.sessions[tgId] = &userSession{
+			tgID:   tgId,
+			bxUser: u,
+			state:  Started,
+		}
+		return true, nil
+	}
+	return false, nil
+}
 
-	b.logger.Debug("bot started")
-	b.bot.Start()
-	b.logger.Debug("bot ended")
+// Checks if session exists and if not - auth user by phone, add it to the list of familiar users and create session
+func (b *bot) tryAuthByPhone(c tele.Context) error {
+	// Assume session does not exist
+	tgId := c.Sender().ID
+
+	// Validate message
+	if c.Message().Contact == nil {
+		return fmt.Errorf("check user by phone: message does not contain contact info")
+	}
+	// Do auth
+	u, err := b.bx.AuthUserByPhone(c.Message().Contact.PhoneNumber)
+	if err != nil {
+		return fmt.Errorf("auth user by phone: %w", err)
+	}
+
+	// Auth is successful
+	// Save user
+	b.knowenList[tgId] = int64(u.GetId())
+	// Create session
+	b.sessions[tgId] = &userSession{
+		tgID:   tgId,
+		bxUser: u,
+		state:  Started,
+	}
 	return nil
 }

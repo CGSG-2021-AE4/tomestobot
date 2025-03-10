@@ -16,6 +16,7 @@ type BxUser interface {
 }
 
 type BxWrapper interface {
-	AuthUserByPhone(phone string) (BxUser, error) // Check if there is a user with this number and save if it is. Nil if auth is successful, error if not
+	AuthUserByPhone(phone string) (BxUser, error) // Check if there is a user with this number and creates BxUser if it is. Nil if auth is successful, error if not
+	AuthUserById(id bxtypes.Id) (BxUser, error)   // The same thing but not we know id
 	io.Closer
 }
