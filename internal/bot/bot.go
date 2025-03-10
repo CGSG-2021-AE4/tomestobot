@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"tomestobot/api"
+	"tomestobot/internal/bot/session"
 	"tomestobot/pkg/gobx/bxtypes"
 
 	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 	tele "gopkg.in/telebot.v4"
+	"gopkg.in/telebot.v4/middleware"
 )
 
 var validate = validator.New(validator.WithRequiredStructEnabled())
@@ -23,18 +25,14 @@ type bot struct {
 	logger *log.Logger
 
 	bot       *tele.Bot     // Telegram bot API wrapper
-	authGroup *tele.Group   // Telebot group for commands that require authorization - has auth middle
+	mainGroup *tele.Group   // Group for main handlers - is neede because I do not need to apply session middle for OnContact endpoint
 	bx        api.BxWrapper // Bitrix wrapper
 
-	knowenList map[int64]int64        // List of knowen users' IDs, so they do not have to share their contact every time
-	sessions   map[int64]*userSession // List of current sessions, sessions will be susspended after some idle time
+	knowenList map[int64]int64    // List of knowen users' IDs, so they do not have to share their contact every time
+	sessions   api.SessionManager // Manages sessions
 }
 
-type Bot interface {
-	Start() error
-}
-
-func New(logger *log.Logger, descr BotDescriptor) (Bot, error) {
+func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
 	// Validate descriptor
 	if err := validate.Struct(descr); err != nil {
 		return nil, fmt.Errorf("bot descriptor validation: %w", err)
@@ -50,15 +48,18 @@ func New(logger *log.Logger, descr BotDescriptor) (Bot, error) {
 		return nil, fmt.Errorf("telebot creation: %w", err)
 	}
 
+	// Setup session group
+	mainGroup := telebot.Group()
+
 	b := &bot{
 		logger: logger,
 
 		bot:       telebot,
-		authGroup: telebot.Group(),
+		mainGroup: mainGroup,
 		bx:        descr.Bx,
 
-		knowenList: map[int64]int64{},        // Later will load from a file -- links telegram id with bitrix id
-		sessions:   map[int64]*userSession{}, // Map of active sessions
+		knowenList: map[int64]int64{}, // Later will load from a file -- links telegram id with bitrix id
+		sessions:   session.NewManager(logger, mainGroup),
 	}
 
 	if err := b.setupEndpoints(); err != nil {
@@ -75,12 +76,28 @@ func (b *bot) Start() error {
 }
 
 func (b *bot) setupEndpoints() error {
-	b.authGroup.Use(b.sessionMiddle)
+	// Setup middle
+	b.mainGroup.Use(b.sessionMiddle) // For authorization
+	b.bot.Use(middleware.AutoRespond())
+	b.bot.Use(middleware.Recover(func(err error, c tele.Context) {
+		b.logger.Warn("GOT PANIC", "username", c.Sender().Username, "err", err.Error())
+	}))
 
+	// Contact for auth
 	b.bot.Handle(tele.OnContact, b.onContact) // The method is the only one not in auth group!!!
 
-	b.authGroup.Handle("/start", func(c tele.Context) error {
-		return c.Send("START endpoint")
+	b.mainGroup.Handle("/start", func(c tele.Context) error {
+		// If user reached this endpoint - session exists
+		// Reset session
+		return b.sessions.Get(c.Sender().ID).OnStart(c)
+	})
+
+	b.mainGroup.Handle("/stop", func(c tele.Context) error { // For debug purposes - ends user's session
+		if b.sessions.Exist(c.Sender().ID) {
+			b.sessions.Stop(c.Sender().ID)
+			return c.Send("Session stoped")
+		}
+		return c.Send("No active session for this user")
 	})
 	return nil
 }
@@ -89,7 +106,7 @@ func (b *bot) setupEndpoints() error {
 func (b *bot) sessionMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		// Session does not exist - do auth stuff
-		if _, exists := b.sessions[c.Sender().ID]; !exists {
+		if !b.sessions.Exist(c.Sender().ID) {
 			b.logger.Debug("auth user", "id", c.Sender().ID)
 			// Check if chat is suitable for conversation
 			if c.Sender().IsBot {
@@ -122,7 +139,7 @@ func (b *bot) reqContact(c tele.Context) error {
 
 // OnContact endpoint callback
 func (b *bot) onContact(c tele.Context) error {
-	if _, exists := b.sessions[c.Sender().ID]; !exists {
+	if !b.sessions.Exist(c.Sender().ID) {
 		// Session does not exist so we auth
 
 		// Try to auth
@@ -133,7 +150,10 @@ func (b *bot) onContact(c tele.Context) error {
 		// Clear messages
 		b.bot.Delete(c.Message().ReplyTo)
 		b.bot.Delete(c.Message())
-		return c.Send("Successfully authorised(by phone)!!!")
+		if err := c.Send("Successfully authorised(by phone)!!!"); err != nil {
+			return fmt.Errorf("success authed msg send: %w", err)
+		}
+		return b.bot.Trigger("/start", c)
 	}
 
 	b.logger.Warn("got on contact message but user is authorised")
@@ -152,11 +172,11 @@ func (b *bot) tryAuthById(c tele.Context) (bool, error) {
 		if err != nil {
 			return true, fmt.Errorf("auth user by id: %w", err)
 		}
-		b.sessions[tgId] = &userSession{
-			tgID:   tgId,
-			bxUser: u,
-			state:  Started,
-		}
+		// Auth is successful
+		b.logger.Debug("user authed by id", "username", c.Sender().Username)
+		// Create session
+		b.sessions.Start(tgId, u)
+
 		return true, nil
 	}
 	return false, nil
@@ -178,13 +198,11 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	}
 
 	// Auth is successful
+	b.logger.Debug("user authed by phone", "username", c.Sender().Username)
 	// Save user
 	b.knowenList[tgId] = int64(u.GetId())
 	// Create session
-	b.sessions[tgId] = &userSession{
-		tgID:   tgId,
-		bxUser: u,
-		state:  Started,
-	}
+	b.sessions.Start(tgId, u)
+
 	return nil
 }
