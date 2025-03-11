@@ -81,6 +81,7 @@ func (b *bot) setupEndpoints() error {
 	b.bot.Use(middleware.AutoRespond())
 	b.bot.Use(middleware.Recover(func(err error, c tele.Context) {
 		b.logger.Warn("GOT PANIC", "username", c.Sender().Username, "err", err.Error())
+		c.Send("PANIC - try to restart")
 	}))
 
 	// Contact for auth
@@ -139,6 +140,7 @@ func (b *bot) reqContact(c tele.Context) error {
 
 // OnContact endpoint callback
 func (b *bot) onContact(c tele.Context) error {
+	b.logger.Debug("on contact")
 	if !b.sessions.Exist(c.Sender().ID) {
 		// Session does not exist so we auth
 
@@ -192,10 +194,12 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 		return fmt.Errorf("check user by phone: message does not contain contact info")
 	}
 	// Do auth
+	b.logger.Debug("bx log by phone")
 	u, err := b.bx.AuthUserByPhone(c.Message().Contact.PhoneNumber)
 	if err != nil {
 		return fmt.Errorf("auth user by phone: %w", err)
 	}
+	b.logger.Debug("ok")
 
 	// Auth is successful
 	b.logger.Debug("user authed by phone", "username", c.Sender().Username)

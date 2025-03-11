@@ -47,7 +47,7 @@ func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
 
 func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 	// Make request
-	resp, err := b.client.Do(
+	resp, err := b.client.DoRaw(
 		"user.get",
 		bxtypes.ReqUserGet{
 			Filter: map[string]string{
@@ -55,12 +55,13 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 			},
 		},
 		&bxtypes.ArrayResponse[bxtypes.User]{})
+	b.logger.Debug("got resp")
 
 	// Check for result to be valid
 	if err != nil {
 		return nil, fmt.Errorf("during request: %w", err)
 	}
-	res, ok := resp.(*bxtypes.ArrayResponse[bxtypes.User])
+	res, ok := resp.Result().(*bxtypes.ArrayResponse[bxtypes.User])
 	if !ok {
 		return nil, fmt.Errorf("failed to parse response")
 	}
@@ -80,7 +81,7 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 
 func (b *bxWrapper) AuthUserById(id bxtypes.Id) (api.BxUser, error) {
 	// Make request
-	resp, err := b.client.Do(
+	resp, err := b.client.DoRaw(
 		"user.get",
 		bxtypes.ReqUserGet{
 			Filter: map[string]string{
@@ -93,7 +94,7 @@ func (b *bxWrapper) AuthUserById(id bxtypes.Id) (api.BxUser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("during request: %w", err)
 	}
-	res, ok := resp.(*bxtypes.ArrayResponse[bxtypes.User])
+	res, ok := resp.Result().(*bxtypes.ArrayResponse[bxtypes.User])
 	if !ok {
 		return nil, fmt.Errorf("failed to parse response")
 	}
