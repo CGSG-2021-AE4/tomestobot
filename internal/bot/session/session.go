@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"strconv"
 	"tomestobot/api"
 	"tomestobot/pkg/gobx/bxtypes"
 
@@ -29,7 +30,8 @@ type session struct {
 
 	// Local state dynamic data
 	state dialogState
-	deal  bxtypes.Deal
+	deals []bxtypes.Deal // Current user deals
+	deal  bxtypes.Deal   // Deal the user is working with
 	// lastAction time.Time TODO
 }
 
@@ -66,13 +68,14 @@ func (s *session) onListDeals(c tele.Context) error {
 		s.logger.Warn("list deals error", "username", c.Sender().Username, "err", err.Error())
 		return c.Send(fmt.Sprintf("Got error: %s\n Try to restart bot", err.Error()))
 	}
+	s.deals = deals // Save deals
 	s.logger.Debug(deals)
 
 	// Setup buttons
 	btns := []tele.Row{}
 	menu := &tele.ReplyMarkup{}
-	for _, d := range deals {
-		btn := menu.Data(d.Title, "deal", d.Id.String())
+	for i, d := range deals {
+		btn := menu.Data(d.Title, "selectDeal", strconv.Itoa(i)) // Attach id of deal in deals array
 		s.group.Handle(&btn, s.onDealActions)
 		btns = append(btns, menu.Row(btn))
 	}
@@ -89,7 +92,30 @@ func (s *session) onDealActions(c tele.Context) error {
 	}
 	s.state = dialogDealActions // Update state
 
-	return c.Send("AAA")
+	// Get deal of the button
+	s.logger.Debug(c.Data())
+	i, err := strconv.Atoi(c.Data()) // Deal index in deals array
+	if err != nil {
+		return s.sendError(c, fmt.Errorf("parsing deal index: %w", err))
+	}
+	if i >= len(s.deals) {
+		return s.sendError(c, fmt.Errorf("invlide deal index in deals array"))
+	}
+	s.deal = s.deals[i]
+	s.logger.Debug(s.deal)
+
+	menu := &tele.ReplyMarkup{}
+	addCommentBtn := menu.Data("Add comment", "addComment")
+	s.group.Handle(&addCommentBtn, s.onWriteComment)
+	listTasksBtn := menu.Data("List tasks", "listTasks")
+	s.group.Handle(&listTasksBtn, s.onListTasks)
+
+	menu.Inline(
+		menu.Row(addCommentBtn),
+		menu.Row(listTasksBtn),
+	)
+
+	return c.Send(fmt.Sprintf("Deal: %s\nStatus: %s\nSelect the action:", s.deal.Title, s.deal.StageId), menu)
 }
 
 // Asks to write a coomment
