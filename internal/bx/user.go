@@ -40,7 +40,7 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 	return res.Result, nil
 }
 
-func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
+func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id, error) {
 	// Make request
 	resp, err := u.bx.Do(
 		"crm.timeline.comment.add",
@@ -56,16 +56,16 @@ func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) error {
 
 	// Check for result to be valid
 	if err != nil {
-		return fmt.Errorf("during request: %w", err)
+		return 0, fmt.Errorf("during request: %w", err)
 	}
 	res, ok := resp.(*bxtypes.Response[bxtypes.ResCrmTimelineCommentAdd])
 	if !ok {
-		return fmt.Errorf("failed to parse response")
+		return 0, fmt.Errorf("failed to parse response")
 	}
 
 	log.Print(res.Result)
 
-	return nil
+	return bxtypes.Id(res.Result), nil
 }
 
 func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {

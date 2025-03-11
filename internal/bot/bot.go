@@ -40,8 +40,9 @@ func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
 
 	// Creating telebot
 	pref := tele.Settings{
-		Token:  descr.TgBotToken,
-		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+		Token:     descr.TgBotToken,
+		Poller:    &tele.LongPoller{Timeout: 10 * time.Second},
+		ParseMode: tele.ModeHTML,
 	}
 	telebot, err := tele.NewBot(pref)
 	if err != nil {

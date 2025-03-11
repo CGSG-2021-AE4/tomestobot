@@ -7,11 +7,11 @@ import (
 )
 
 type BxUser interface {
-	ListDeals() ([]bxtypes.Deal, error)                       // Deals that are accessable for this user. Later add stage as filter
-	AddCommentToDeal(dealId bxtypes.Id, comment string) error // Add comment to this deal
-	ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error)  // List tasks that are attached to this deal and are not complete
-	CompleteTask(taskId bxtypes.Id) error                     // Compete the task
-	GetId() bxtypes.Id                                        // Id getter
+	ListDeals() ([]bxtypes.Deal, error)                                     // Deals that are accessable for this user. Later add stage as filter
+	AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id, error) // Add comment to this deal
+	ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error)                // List tasks that are attached to this deal and are not complete
+	CompleteTask(taskId bxtypes.Id) error                                   // Compete the task
+	GetId() bxtypes.Id                                                      // Id getter
 	io.Closer
 }
 
