@@ -10,18 +10,6 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-type dialogState int
-
-const (
-	dialogStarted = dialogState(iota)
-	dialogDealsList
-	dialogDealActions
-	dialogWriteComment
-	dialogAddComment
-	dialogTasksList
-	dialogTaskComplete
-)
-
 type session struct {
 	logger *log.Logger
 	group  *tele.Group // Group for sessions' endpoints
@@ -30,7 +18,7 @@ type session struct {
 	bxUser api.BxUser
 
 	// Local state dynamic data
-	state dialogState
+	flow  DialogFlow     // Controls right dialog order
 	deals []bxtypes.Deal // Current user deals
 	deal  bxtypes.Deal   // Deal the user is working with
 	tasks []bxtypes.Task // Tasks of current deal
@@ -41,7 +29,11 @@ type session struct {
 // Are named after commands or actions they execute
 
 func (s *session) OnStart(c tele.Context) error {
-	s.state = dialogStarted // Update state - do not check because it does not matter
+	if err := s.flow.Set(DialogStarted); err != nil {
+		return s.sendError(c, err)
+	}
+	defer s.flow.Done()
+
 	menu := &tele.ReplyMarkup{}
 
 	listDealsBtn := menu.Data("List deals", "list_deals")
@@ -56,11 +48,10 @@ func (s *session) OnStart(c tele.Context) error {
 
 // Handles list deals message
 func (s *session) onListDeals(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogStarted && s.state != dialogDealActions {
-		return s.sendError(c, fmt.Errorf("invalid entry state: %d", s.state))
+	if err := s.flow.Set(DialogDealsList); err != nil {
+		return s.sendError(c, err)
 	}
-	s.state = dialogDealsList // Update state
+	defer s.flow.Done()
 
 	s.logger.Debug("on list deals", "username", c.Sender().Username)
 
@@ -88,24 +79,26 @@ func (s *session) onListDeals(c tele.Context) error {
 
 // Shows actions with select deal
 func (s *session) onDealActions(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogDealsList && s.state != dialogAddComment {
-		return s.sendError(c, fmt.Errorf("invalid entry state: %d", s.state))
+	if err := s.flow.Set(DialogDealActions); err != nil {
+		return s.sendError(c, err)
 	}
-	s.state = dialogDealActions // Update state
+	defer s.flow.Done()
 
 	// Get deal of the button
 	s.logger.Debug(c.Data())
-	i, err := strconv.Atoi(c.Data()) // Deal index in deals array
-	if err != nil {
-		return s.sendError(c, fmt.Errorf("parsing deal index: %w", err))
+	if c.Data() != "" || s.deal == bxtypes.NilDeal { // Means we came here not from deal list but from add comment
+		i, err := strconv.Atoi(c.Data()) // Deal index in deals array
+		if err != nil {
+			return s.sendError(c, fmt.Errorf("parsing deal index: %w", err))
+		}
+		if i >= len(s.deals) {
+			return s.sendError(c, fmt.Errorf("invlide deal index in deals array"))
+		}
+		s.deal = s.deals[i]
 	}
-	if i >= len(s.deals) {
-		return s.sendError(c, fmt.Errorf("invlide deal index in deals array"))
-	}
-	s.deal = s.deals[i]
 	s.logger.Debug(s.deal)
 
+	// Create buttons
 	menu := &tele.ReplyMarkup{}
 	addCommentBtn := menu.Data("Add comment", "addComment")
 	s.group.Handle(&addCommentBtn, s.onWriteComment)
@@ -122,11 +115,11 @@ func (s *session) onDealActions(c tele.Context) error {
 
 // Asks to write a coomment
 func (s *session) onWriteComment(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogDealActions {
-		return s.sendError(c, fmt.Errorf("invalid entry state: %d", s.state))
+	if err := s.flow.Set(DialogWriteComment); err != nil {
+		return s.sendError(c, err)
 	}
-	s.state = dialogWriteComment // Update state
+	defer s.flow.Done()
+
 	s.group.Handle(tele.OnText, s.onAddComment)
 
 	return c.Send("Please, write a message:")
@@ -134,14 +127,14 @@ func (s *session) onWriteComment(c tele.Context) error {
 
 // Add written comment to deal
 func (s *session) onAddComment(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogWriteComment {
-		// Just test not critical
+	if err := s.flow.Set(DialogAddComment); err != nil { // Hooks only uncomplete error
+		return s.sendError(c, err)
+	}
+	if s.flow.Get() != DialogAddComment || s.flow.IsDone() { // Means it is just text - not for comment
 		s.logger.Warn("got raw text outside comment", "username", c.Sender().Username)
 		return c.Send("DEBUG  WARNING:\nraw text messages work only while adding comment\n\nFor menu type <code>/start</code>") // DEBUG
-		// return nil
 	}
-	s.state = dialogAddComment // Update state
+	s.flow.Done()
 
 	s.logger.Debug("onAddComment", c.Text())
 	commentId, err := s.bxUser.AddCommentToDeal(s.deal.Id, c.Text())
@@ -150,16 +143,19 @@ func (s *session) onAddComment(c tele.Context) error {
 	}
 	s.logger.Debug("Added comment", "id", commentId)
 
-	return c.Send("comment added")
+	if err := c.Send("comment added"); err != nil {
+		return err
+	}
+	s.flow.Done()
+	return s.onDealActions(c)
 }
 
 // Lists deal tasks
 func (s *session) onListTasks(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogDealActions {
-		return s.sendError(c, fmt.Errorf("invalid entry state: %d", s.state))
+	if err := s.flow.Set(DialogTasksList); err != nil {
+		return s.sendError(c, err)
 	}
-	s.state = dialogTasksList // Update state
+	defer s.flow.Done()
 
 	tasks, err := s.bxUser.ListDealTasks(s.deal.Id)
 	if err != nil {
@@ -181,11 +177,11 @@ func (s *session) onListTasks(c tele.Context) error {
 
 // Completes selected task
 func (s *session) onCompleteTask(c tele.Context) error {
-	// Check possible entry states
-	if s.state != dialogTasksList {
-		return s.sendError(c, fmt.Errorf("invalid entry state: %d", s.state))
+	if err := s.flow.Set(DialogTaskComplete); err != nil {
+		return s.sendError(c, err)
 	}
-	s.state = dialogTasksList // Update state
+	defer s.flow.Done()
+
 	s.logger.Debug("Complete task", "i", c.Data())
 
 	// Validate task index and task itself
@@ -208,7 +204,9 @@ func (s *session) onCompleteTask(c tele.Context) error {
 
 // Resets state to started
 func (s *session) reset() {
-	s.state = dialogStarted
+	s.flow.Done() // To ensure there is no error
+	s.flow.Set(DialogStarted)
+	s.flow.Done()
 }
 
 func (s *session) sendError(c tele.Context, err error) error {

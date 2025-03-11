@@ -2,6 +2,7 @@ package session
 
 import (
 	"tomestobot/api"
+	"tomestobot/pkg/gobx/bxtypes"
 
 	"github.com/charmbracelet/log"
 	tele "gopkg.in/telebot.v4"
@@ -46,7 +47,12 @@ func (m *sessionManager) Start(tgId int64, u api.BxUser) api.Session {
 		group:  m.group,
 
 		bxUser: u,
-		state:  dialogStarted,
+
+		flow: NewDialogFlow(),
+		// Dynamic data
+		deals: []bxtypes.Deal{},
+		deal:  bxtypes.NilDeal,
+		tasks: []bxtypes.Task{},
 	}
 	m.users[tgId] = s
 	return s

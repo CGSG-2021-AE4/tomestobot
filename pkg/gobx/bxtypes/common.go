@@ -16,12 +16,26 @@ type User struct {
 	LastName string `json:"LAST_NAME"`
 }
 
+var NilUser = User{
+	Id:       0,
+	Name:     "",
+	LastName: "",
+}
+
 type Deal struct {
 	Id         Id     `json:"ID"`
 	Title      string `json:"TITLE"`
 	TypeId     string `json:"TYPE_ID"`
 	CategoryId string `json:"CATEGORY_ID"`
 	StageId    string `json:"STAGE_ID"`
+}
+
+var NilDeal = Deal{
+	Id:         0,
+	Title:      "",
+	TypeId:     "",
+	CategoryId: "",
+	StageId:    "",
 }
 
 // Task status type
@@ -55,6 +69,12 @@ type Task struct {
 	Id     Id        `json:"ID"`
 	Title  string    `json:"TITLE"`
 	Status TaskState `json:"STATUS"`
+}
+
+var NilTask = Task{
+	Id:     0,
+	Title:  "",
+	Status: 0,
 }
 
 // Resource id type
