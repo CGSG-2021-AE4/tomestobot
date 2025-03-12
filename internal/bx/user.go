@@ -23,6 +23,7 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 				Select: []string{"ID", "TITLE", "TYPE_ID", "CATEGORY_ID", "STAGE_ID"},
 				Filter: map[string]string{
 					// What is here TODO
+					"ASSIGNED_BY_ID": u.id.String(),
 				},
 			},
 		},
@@ -75,8 +76,9 @@ func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 		bxtypes.ReqTasksTaskList{
 			Select: []string{"ID", "TITLE", "STATUS", "UF_CRM_TASK"},
 			Filter: map[string]string{
-				"<REAL_STATUS": "5", // Now there are only incomplete ones TODO
-				"UF_CRM_TASK":  "D_" + dealId.String(),
+				"<REAL_STATUS":   "5", // Now there are only incomplete ones TODO
+				"RESPONSIBLE_ID": u.id.String(),
+				"UF_CRM_TASK":    "D_" + dealId.String(),
 			},
 			Order: map[string]string{},
 		},

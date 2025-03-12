@@ -28,6 +28,7 @@ type session struct {
 // Commands handlers
 // Are named after commands or actions they execute
 
+// Main message - may be consider as help
 func (s *session) OnStart(c tele.Context) error {
 	if err := s.flow.Set(DialogStarted); err != nil {
 		return s.sendError(c, err)
