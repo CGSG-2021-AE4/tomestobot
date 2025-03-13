@@ -47,7 +47,7 @@ func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
 
 func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 	// Make request
-	resp, err := b.client.DoRaw(
+	resp, err := b.client.Do(
 		"user.get",
 		bxtypes.ReqUserGet{
 			Filter: map[string]string{
@@ -59,17 +59,17 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 
 	// Check for result to be valid
 	if err != nil {
-		return nil, fmt.Errorf("during request: %w", err)
+		return nil, err
 	}
 	res, ok := resp.Result().(*bxtypes.ArrayResponse[bxtypes.User])
 	if !ok {
-		return nil, fmt.Errorf("failed to parse response")
+		return nil, api.ErrorParseResponse
 	}
 	if res.Total == 0 {
-		return nil, fmt.Errorf("no such users found")
+		return nil, api.ErrorUserNotFound
 	}
 	if res.Total > 1 {
-		return nil, fmt.Errorf("found several users")
+		return nil, api.ErrorSeveralUsersFound
 	}
 
 	// Create new user
@@ -81,7 +81,7 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 
 func (b *bxWrapper) AuthUserById(id bxtypes.Id) (api.BxUser, error) {
 	// Make request
-	resp, err := b.client.DoRaw(
+	resp, err := b.client.Do(
 		"user.get",
 		bxtypes.ReqUserGet{
 			Filter: map[string]string{
@@ -92,17 +92,17 @@ func (b *bxWrapper) AuthUserById(id bxtypes.Id) (api.BxUser, error) {
 
 	// Check for result to be valid
 	if err != nil {
-		return nil, fmt.Errorf("during request: %w", err)
+		return nil, err
 	}
 	res, ok := resp.Result().(*bxtypes.ArrayResponse[bxtypes.User])
 	if !ok {
-		return nil, fmt.Errorf("failed to parse response")
+		return nil, api.ErrorParseResponse
 	}
 	if res.Total == 0 {
-		return nil, fmt.Errorf("no such users found")
+		return nil, api.ErrorUserNotFound
 	}
 	if res.Total > 1 {
-		return nil, fmt.Errorf("found several users")
+		return nil, api.ErrorSeveralUsersFound
 	}
 
 	// Create new user

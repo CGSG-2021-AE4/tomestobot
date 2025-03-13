@@ -1,7 +1,7 @@
 package session
 
 import (
-	"fmt"
+	"tomestobot/api"
 )
 
 // Dialog flow handles the right order of requests
@@ -64,35 +64,34 @@ func NewDialogFlow() DialogFlow {
 
 func (f *dialogFlow) Set(newState DialogState) error {
 	if !f.done {
-		return fmt.Errorf("previous state %s is not complete", f.state)
+		return api.ErrorDialogPrevStateNotComplete
 	}
-	err := fmt.Errorf("invalid previous state: %s", f.state) // For future
 	switch newState {
 	case DialogStarted: // For explicity
 		break
 	case DialogDealsList:
-		if f.state != DialogStarted {
-			return err
+		if f.state != DialogStarted && f.state != DialogDealActions {
+			return api.ErrorDialogInvalidOrder
 		}
 	case DialogDealActions:
-		if f.state != DialogDealsList && f.state != DialogAddComment {
-			return err
+		if f.state != DialogDealsList && f.state != DialogAddComment && f.state != DialogTaskComplete {
+			return api.ErrorDialogInvalidOrder
 		}
 	case DialogWriteComment:
 		if f.state != DialogDealActions {
-			return err
+			return api.ErrorDialogInvalidOrder
 		}
 	case DialogAddComment:
 		if f.state != DialogWriteComment {
-			return nil // The rest is handled in session
+			return api.ErrorDialogInvalidOrder
 		}
 	case DialogTasksList:
 		if f.state != DialogDealActions {
-			return err
+			return api.ErrorDialogInvalidOrder
 		}
 	case DialogTaskComplete:
 		if f.state != DialogTasksList {
-			return err
+			return api.ErrorDialogInvalidOrder
 		}
 	}
 	f.done = false

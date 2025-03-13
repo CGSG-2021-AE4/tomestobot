@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"tomestobot/api"
 	"tomestobot/pkg/gobx/bxtypes"
@@ -60,7 +61,7 @@ func (s *session) onListDeals(c tele.Context) error {
 	deals, err := s.bxUser.ListDeals()
 	if err != nil {
 		s.logger.Warn("list deals error", "username", c.Sender().Username, "err", err.Error())
-		return c.Send(fmt.Sprintf("Got error: %s\n Try to restart bot", err.Error()))
+		return s.sendError(c, err)
 	}
 	s.deals = deals // Save deals
 	s.logger.Debug(deals)
@@ -105,10 +106,13 @@ func (s *session) onDealActions(c tele.Context) error {
 	s.group.Handle(&addCommentBtn, s.onWriteComment)
 	listTasksBtn := menu.Data("List tasks", "listTasks")
 	s.group.Handle(&listTasksBtn, s.onListTasks)
+	backBtn := menu.Data("Back", "back")
+	s.group.Handle(&backBtn, s.onListDeals)
 
 	menu.Inline(
 		menu.Row(addCommentBtn),
 		menu.Row(listTasksBtn),
+		menu.Row(backBtn),
 	)
 
 	return c.Send(fmt.Sprintf("Deal: %s\nStatus: %s\nSelect the action:", s.deal.Title, s.deal.StageId), menu)
@@ -140,7 +144,7 @@ func (s *session) onAddComment(c tele.Context) error {
 	s.logger.Debug("onAddComment", c.Text())
 	commentId, err := s.bxUser.AddCommentToDeal(s.deal.Id, c.Text())
 	if err != nil {
-		return s.sendError(c, fmt.Errorf("bx add comment to deal: %w", err))
+		return s.sendError(c, err)
 	}
 	s.logger.Debug("Added comment", "id", commentId)
 
@@ -160,7 +164,7 @@ func (s *session) onListTasks(c tele.Context) error {
 
 	tasks, err := s.bxUser.ListDealTasks(s.deal.Id)
 	if err != nil {
-		return s.sendError(c, fmt.Errorf("bx list deal tasks: %w", err))
+		return s.sendError(c, err)
 	}
 	s.tasks = tasks
 
@@ -181,7 +185,6 @@ func (s *session) onCompleteTask(c tele.Context) error {
 	if err := s.flow.Set(DialogTaskComplete); err != nil {
 		return s.sendError(c, err)
 	}
-	defer s.flow.Done()
 
 	s.logger.Debug("Complete task", "i", c.Data())
 
@@ -195,10 +198,15 @@ func (s *session) onCompleteTask(c tele.Context) error {
 	}
 	task := s.tasks[index]
 	if err := s.bxUser.CompleteTask(task.Id); err != nil {
-		return s.sendError(c, fmt.Errorf("bx complete task: %w", err))
+		return s.sendError(c, err)
 	}
 
-	return c.Send(fmt.Sprintf("Task <u>%s</u> was successfully completed.", task.Title))
+	if err := c.Send(fmt.Sprintf("Task <u>%s</u> was successfully completed.", task.Title)); err != nil {
+		return s.sendError(c, err)
+	}
+
+	s.flow.Done()
+	return s.onDealActions(c)
 }
 
 // Supporting functions
@@ -210,7 +218,42 @@ func (s *session) reset() {
 	s.flow.Done()
 }
 
+// Function that analise !my !internal errors and log/ sends report
 func (s *session) sendError(c tele.Context, err error) error {
-	s.logger.Warn("ERROR", "username", c.Sender().Username, "err", err.Error())
-	return c.Send(fmt.Sprintf("ERROR:\n<code>%s</code>\n\nTry restart bot", err.Error()))
+	addFooter, str := errorText(err)
+
+	s.logger.Warn("str", "username", c.Sender().Username)
+
+	if addFooter {
+		str += "\n\nType <code>/start</code> to restart bot."
+	}
+
+	return c.Send(str)
+}
+
+// Styles error string
+// Returns:
+//   - do add help footer
+//   - styled error
+func errorText(err error) (bool, string) {
+	if err, ok := err.(bxtypes.ErrorResty); ok { // Resty
+		return true, fmt.Sprintf("ERROR:\n<code>resty level: %s</code>", err.Error())
+	}
+	if err, ok := err.(bxtypes.ErrorStatusCode); ok { // HTTP status code
+		return true, fmt.Sprintf("ERROR:\n<code>http status: %s</code>", http.StatusText(int(err)))
+	}
+	if err, ok := err.(bxtypes.ErrorResponse); ok { // HTTP status code
+		return true, fmt.Sprintf("ERROR:\n<code>with response: %s</code>", api.ErrorResponseText(err))
+	}
+	if err, ok := err.(bxtypes.ErrorInternal); ok { // HTTP status code
+		switch err { // Special errors
+		case api.ErrorUserNotFound:
+			return false, "User not found"
+		case api.ErrorSeveralUsersFound:
+			return false, "Found several users"
+		}
+		return true, fmt.Sprintf("ERROR:\n<code>internal level: %s</code>", api.ErrorInternalText(err))
+	}
+
+	return true, fmt.Sprintf("ERROR:\n<code>unknown level: %s</code>", err.Error())
 }

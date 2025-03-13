@@ -1,10 +1,9 @@
 package bx
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/log"
 
+	"tomestobot/api"
 	"tomestobot/pkg/gobx/bxclient"
 	"tomestobot/pkg/gobx/bxtypes"
 )
@@ -31,11 +30,11 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 
 	// Check for result to be valid
 	if err != nil {
-		return nil, fmt.Errorf("during request: %w", err)
+		return nil, err
 	}
-	res, ok := resp.(*bxtypes.ArrayResponse[bxtypes.Deal])
+	res, ok := resp.Result().(*bxtypes.ArrayResponse[bxtypes.Deal])
 	if !ok {
-		return nil, fmt.Errorf("failed to parse response")
+		return nil, api.ErrorParseResponse
 	}
 
 	return res.Result, nil
@@ -57,11 +56,11 @@ func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id
 
 	// Check for result to be valid
 	if err != nil {
-		return 0, fmt.Errorf("during request: %w", err)
+		return 0, err
 	}
-	res, ok := resp.(*bxtypes.Response[bxtypes.ResCrmTimelineCommentAdd])
+	res, ok := resp.Result().(*bxtypes.Response[bxtypes.ResCrmTimelineCommentAdd])
 	if !ok {
-		return 0, fmt.Errorf("failed to parse response")
+		return 0, api.ErrorParseResponse
 	}
 
 	log.Print(res.Result)
@@ -86,11 +85,11 @@ func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 
 	// Check for result to be valid
 	if err != nil {
-		return nil, fmt.Errorf("during request: %w", err)
+		return nil, err
 	}
-	res, ok := resp.(*bxtypes.Response[bxtypes.ResTasksTaskList])
+	res, ok := resp.Result().(*bxtypes.Response[bxtypes.ResTasksTaskList])
 	if !ok {
-		return nil, fmt.Errorf("failed to parse response")
+		return nil, api.ErrorParseResponse
 	}
 
 	return res.Result.Tasks, nil
@@ -107,7 +106,7 @@ func (u *bxUser) CompleteTask(taskId bxtypes.Id) error {
 
 	// Check for result to be valid
 	if err != nil {
-		return fmt.Errorf("during request: %w", err)
+		return err
 	}
 	return nil
 }

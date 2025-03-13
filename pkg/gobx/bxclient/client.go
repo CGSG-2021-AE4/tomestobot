@@ -11,8 +11,7 @@ import (
 
 type BxClient interface {
 	SetDebug(b bool)
-	DoRaw(method string, bodyData any, respData any) (*resty.Response, error)
-	Do(method string, bodyData any, respData any) (any, error)
+	Do(method string, bodyData any, respData any) (*resty.Response, error)
 	io.Closer
 }
 
@@ -32,32 +31,31 @@ func (c *bxClient) SetDebug(b bool) {
 	c.client.SetDebug(b)
 }
 
-func (c *bxClient) DoRaw(method string, bodyData any, respData any) (*resty.Response, error) {
+// From Do functions all errors already wrapped!!! so I do not have to wrap them later to mark error's level
+func (c *bxClient) Do(method string, bodyData any, respData any) (*resty.Response, error) {
+	// Setup request
+
 	req := c.client.R().
 		SetContentType("application/json").
 		SetHeader("Accept", "application/json").
 		SetBody(bodyData).
 		SetError(&bxtypes.ResponseError{})
-
 	if respData != nil {
 		req.SetResult(respData)
 	}
 
+	// Make request
 	resp, err := req.Post(c.apiUrl + method)
-	if err != nil {
-		return nil, fmt.Errorf("error during request: %w", err)
-	}
 
-	if resp.IsError() {
-		return resp, resp.Error().(*bxtypes.ResponseError)
+	// Handling errors
+	if err != nil { // Resty internal error
+		return nil, bxtypes.ErrorResty{Err: err}
+	}
+	if resp.IsError() { // HTTP status code >= 400
+		return resp, bxtypes.ErrorStatusCode(resp.StatusCode())
 	}
 
 	return resp, nil
-}
-
-func (c *bxClient) Do(method string, bodyData any, respData any) (any, error) {
-	resp, err := c.DoRaw(method, bodyData, respData)
-	return resp.Result(), err
 }
 
 func (c *bxClient) Close() error {
