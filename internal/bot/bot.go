@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"tomestobot/api"
@@ -28,8 +29,8 @@ type bot struct {
 	mainGroup *tele.Group   // Group for main handlers - is neede because I do not need to apply session middle for OnContact endpoint
 	bx        api.BxWrapper // Bitrix wrapper
 
-	knowenList map[int64]int64    // List of knowen users' IDs, so they do not have to share their contact every time
-	sessions   api.SessionManager // Manages sessions
+	idStore  api.UsersIdStore   // Store of familiar users' IDs, so they do not have to share their contact every time
+	sessions api.SessionManager // Manages sessions
 }
 
 func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
@@ -59,8 +60,8 @@ func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
 		mainGroup: mainGroup,
 		bx:        descr.Bx,
 
-		knowenList: map[int64]int64{}, // Later will load from a file -- links telegram id with bitrix id
-		sessions:   session.NewManager(logger, mainGroup),
+		idStore:  NewJsonUsersIdStore(logger, os.Getenv("ID_STORE_FILE")),
+		sessions: session.NewManager(logger, mainGroup),
 	}
 
 	if err := b.setupEndpoints(); err != nil {
@@ -168,7 +169,7 @@ func (b *bot) onContact(c tele.Context) error {
 func (b *bot) tryAuthById(c tele.Context) (bool, error) {
 	// Assume session does not exist
 	tgId := c.Sender().ID
-	bxId, wok := b.knowenList[tgId]
+	bxId, wok := b.idStore.Get(tgId)
 
 	if wok { // id exists in the list of familiar users and session does not exist
 		u, err := b.bx.AuthUserById(bxtypes.Id(bxId))
@@ -205,7 +206,10 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	// Auth is successful
 	b.logger.Debug("user authed by phone", "username", c.Sender().Username)
 	// Save user
-	b.knowenList[tgId] = int64(u.GetId())
+	b.idStore.Set(tgId, int64(u.GetId()))
+	if err := b.idStore.Save(); err != nil {
+		b.logger.Warn(err)
+	}
 	// Create session
 	b.sessions.Start(tgId, u)
 
