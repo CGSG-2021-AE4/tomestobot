@@ -11,7 +11,7 @@ type BxUser interface {
 	AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id, error) // Add comment to this deal
 	ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error)                // List tasks that are attached to this deal and are not complete
 	CompleteTask(taskId bxtypes.Id) error                                   // Compete the task
-	GetId() bxtypes.Id                                                      // Id getter
+	Get() bxtypes.User                                                      // Returns user info
 	io.Closer
 }
 

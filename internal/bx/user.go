@@ -9,8 +9,8 @@ import (
 )
 
 type bxUser struct {
-	bx bxclient.BxClient
-	id bxtypes.Id
+	bx   bxclient.BxClient
+	user bxtypes.User
 }
 
 func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
@@ -22,7 +22,7 @@ func (u *bxUser) ListDeals() ([]bxtypes.Deal, error) {
 				Select: []string{"ID", "TITLE", "TYPE_ID", "CATEGORY_ID", "STAGE_ID"},
 				Filter: map[string]string{
 					// What is here TODO
-					"ASSIGNED_BY_ID": u.id.String(),
+					"ASSIGNED_BY_ID": u.user.Id.String(),
 				},
 			},
 		},
@@ -48,7 +48,7 @@ func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id
 			Fields: bxtypes.ReqCrmTimelineCommentAddFields{
 				EntityId:   dealId,
 				EntityType: "deal",
-				AuthorId:   u.id,
+				AuthorId:   u.user.Id,
 				Comment:    comment,
 			},
 		},
@@ -76,7 +76,7 @@ func (u *bxUser) ListDealTasks(dealId bxtypes.Id) ([]bxtypes.Task, error) {
 			Select: []string{"ID", "TITLE", "STATUS", "UF_CRM_TASK"},
 			Filter: map[string]string{
 				"<REAL_STATUS":   "5", // Now there are only incomplete ones TODO
-				"RESPONSIBLE_ID": u.id.String(),
+				"RESPONSIBLE_ID": u.user.Id.String(),
 				"UF_CRM_TASK":    "D_" + dealId.String(),
 			},
 			Order: map[string]string{},
@@ -111,8 +111,8 @@ func (u *bxUser) CompleteTask(taskId bxtypes.Id) error {
 	return nil
 }
 
-func (u *bxUser) GetId() bxtypes.Id {
-	return u.id
+func (u *bxUser) Get() bxtypes.User {
+	return u.user
 }
 
 func (u *bxUser) Close() error {

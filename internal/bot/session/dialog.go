@@ -86,7 +86,7 @@ func (f *dialogFlow) Set(newState DialogState) error {
 			return api.ErrorDialogInvalidOrder
 		}
 	case DialogTasksList:
-		if f.state != DialogDealActions {
+		if f.state != DialogDealActions && f.state != DialogAddComment {
 			return api.ErrorDialogInvalidOrder
 		}
 	case DialogTaskComplete:

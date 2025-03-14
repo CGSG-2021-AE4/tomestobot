@@ -45,7 +45,7 @@ func (s *session) OnStart(c tele.Context) error {
 		menu.Row(listDealsBtn),
 	)
 
-	return c.Send("Select actions you want to do:", menu)
+	return c.Send(fmt.Sprintf("Hi, %s %s.\nSelect what you want to do.", s.bxUser.Get().Name, s.bxUser.Get().LastName), menu)
 }
 
 // Handles list deals message
@@ -139,7 +139,7 @@ func (s *session) onAddComment(c tele.Context) error {
 		s.logger.Warn("got raw text outside comment", "username", c.Sender().Username)
 		return c.Send("DEBUG  WARNING:\nraw text messages work only while adding comment\n\nFor menu type <code>/start</code>") // DEBUG
 	}
-	s.flow.Done()
+	defer s.flow.Done()
 
 	s.logger.Debug("onAddComment", c.Text())
 	commentId, err := s.bxUser.AddCommentToDeal(s.deal.Id, c.Text())
@@ -151,8 +151,18 @@ func (s *session) onAddComment(c tele.Context) error {
 	if err := c.Send("comment added"); err != nil {
 		return err
 	}
-	s.flow.Done()
-	return s.onDealActions(c)
+	// Create buttons
+	menu := &tele.ReplyMarkup{}
+	goToStartBtn := menu.Data("No", "goToStart")
+	s.group.Handle(&goToStartBtn, s.OnStart)
+	listTasksBtn := menu.Data("Yes", "listTasks")
+	s.group.Handle(&listTasksBtn, s.onListTasks)
+
+	menu.Inline(
+		menu.Row(goToStartBtn),
+		menu.Row(listTasksBtn),
+	)
+	return c.Send("Complete any tasks for this deal?", menu)
 }
 
 // Lists deal tasks

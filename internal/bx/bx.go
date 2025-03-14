@@ -74,8 +74,8 @@ func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
 
 	// Create new user
 	return &bxUser{
-		bx: b.client,
-		id: res.Result[0].Id,
+		bx:   b.client,
+		user: res.Result[0],
 	}, nil
 }
 
@@ -107,8 +107,8 @@ func (b *bxWrapper) AuthUserById(id bxtypes.Id) (api.BxUser, error) {
 
 	// Create new user
 	return &bxUser{
-		bx: b.client,
-		id: res.Result[0].Id,
+		bx:   b.client,
+		user: res.Result[0],
 	}, nil
 }
 

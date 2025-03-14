@@ -206,7 +206,7 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	// Auth is successful
 	b.logger.Debug("user authed by phone", "username", c.Sender().Username)
 	// Save user
-	b.idStore.Set(tgId, int64(u.GetId()))
+	b.idStore.Set(tgId, int64(u.Get().Id))
 	if err := b.idStore.Save(); err != nil {
 		b.logger.Warn(err)
 	}
