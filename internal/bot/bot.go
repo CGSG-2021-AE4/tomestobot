@@ -82,8 +82,9 @@ func (b *bot) setupEndpoints() error {
 	b.mainGroup.Use(b.sessionMiddle) // For authorization
 	b.bot.Use(middleware.AutoRespond())
 	b.bot.Use(middleware.Recover(func(err error, c tele.Context) {
-		b.logger.Warn("GOT PANIC", "username", c.Sender().Username, "err", err.Error())
-		c.Send("PANIC - try to restart")
+		str := fmt.Sprintf("ERROR:\n<code>panic: %s</code>\n\nПерезапутите бот прописав <code>/start</code>}", err.Error())
+		b.logger.Warn(str, "username", c.Sender().Username)
+		c.Send(str)
 	}))
 
 	// Contact for auth
@@ -98,9 +99,9 @@ func (b *bot) setupEndpoints() error {
 	b.mainGroup.Handle("/stop", func(c tele.Context) error { // For debug purposes - ends user's session
 		if b.sessions.Exist(c.Sender().ID) {
 			b.sessions.Stop(c.Sender().ID)
-			return c.Send("Session stoped")
+			return c.Send("Сессия остановлена")
 		}
-		return c.Send("No active session for this user")
+		return c.Send("Не найдено активных сессий")
 	})
 	return nil
 }
@@ -113,7 +114,7 @@ func (b *bot) sessionMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 			b.logger.Debug("auth user", "id", c.Sender().ID)
 			// Check if chat is suitable for conversation
 			if c.Sender().IsBot {
-				return c.Send("Bots are not allowed")
+				return c.Send("Сообщения от ботов не разрешены")
 			}
 
 			// Check by id else request contact info
@@ -135,9 +136,9 @@ func (b *bot) sessionMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 func (b *bot) reqContact(c tele.Context) error {
 	// Setup reply markup
 	r := &tele.ReplyMarkup{ResizeKeyboard: true}
-	r.Reply(r.Row(r.Contact("Share contact")))
+	r.Reply(r.Row(r.Contact("Предоставить номер")))
 
-	return c.Send("Share your contant for auth", r)
+	return c.Send(`Для авторизыации предоставьте номер телефона.(кнопка "Предоставить номер")`, r)
 }
 
 // OnContact endpoint callback
@@ -154,7 +155,7 @@ func (b *bot) onContact(c tele.Context) error {
 		// Clear messages
 		b.bot.Delete(c.Message().ReplyTo)
 		b.bot.Delete(c.Message())
-		if err := c.Send("Successfully authorised(by phone)!!!"); err != nil {
+		if err := c.Send("Авторизация прошла успешно."); err != nil {
 			return fmt.Errorf("success authed msg send: %w", err)
 		}
 		return b.bot.Trigger("/start", c)

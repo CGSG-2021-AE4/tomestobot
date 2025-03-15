@@ -1,11 +1,16 @@
 package api
 
-import "tomestobot/pkg/gobx/bxtypes"
+import (
+	"fmt"
+	"tomestobot/pkg/gobx/bxtypes"
+)
+
+type ErrorInternal int // My internal errors e.g. no user found
 
 // Some internal errors
 const (
 	// Bx
-	ErrorUserNotFound = bxtypes.ErrorInternal(iota)
+	ErrorUserNotFound = ErrorInternal(iota)
 	ErrorSeveralUsersFound
 
 	// Dialog
@@ -13,7 +18,7 @@ const (
 	ErrorDialogPrevStateNotComplete
 )
 
-func ErrorInternalText(err bxtypes.ErrorInternal) string {
+func ErrorInternalText(err ErrorInternal) string {
 	switch err {
 	case ErrorUserNotFound:
 		return "UserNotFound"
@@ -25,6 +30,10 @@ func ErrorInternalText(err bxtypes.ErrorInternal) string {
 		return "DialogPrevStateNotComplete"
 	}
 	return "unknown"
+}
+
+func (code ErrorInternal) Error() string {
+	return fmt.Sprintf("internal %s", ErrorInternalText(code))
 }
 
 // Some response errors
