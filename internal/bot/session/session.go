@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"tomestobot/api"
 	"tomestobot/pkg/gobx/bxtypes"
@@ -65,6 +66,15 @@ func (s *session) onListDeals(c tele.Context) error {
 	}
 	s.deals = deals // Save deals
 	s.logger.Debug(deals)
+
+	// Case when no deals found
+	if len(deals) == 0 {
+		if err := c.Send("No deals found."); err != nil {
+			return s.sendError(c, err)
+		}
+		s.flow.Done()
+		return s.OnStart(c)
+	}
 
 	// Setup buttons
 	btns := []tele.Row{}
@@ -178,10 +188,20 @@ func (s *session) onListTasks(c tele.Context) error {
 	}
 	s.tasks = tasks
 
+	// Case when no deals found
+	if len(tasks) == 0 {
+		if err := c.Send("No tasks found."); err != nil {
+			return s.sendError(c, err)
+		}
+		s.flow.Done()
+		return s.onDealActions(c)
+	}
+
 	btns := []tele.Row{}
 	menu := &tele.ReplyMarkup{}
+	r, _ := regexp.Compile("по сделке.*")
 	for i, t := range tasks {
-		btn := menu.Data(t.Title, "selectTask", strconv.Itoa(i)) // Attach index of task in tasks array
+		btn := menu.Data(r.ReplaceAllLiteralString(t.Title, ""), "selectTask", strconv.Itoa(i)) // Attach index of task in tasks array
 		s.group.Handle(&btn, s.onCompleteTask)
 		btns = append(btns, menu.Row(btn))
 	}
