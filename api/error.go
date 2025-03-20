@@ -3,7 +3,8 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"tomestobot/pkg/gobx/bxtypes"
+
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 )
 
 type ErrorInternal int // My internal errors e.g. no user found

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"tomestobot/api"
-	"tomestobot/internal/bot/session"
-	"tomestobot/pkg/gobx/bxtypes"
+	"github.com/CGSG-2021-AE4/tomestobot/api"
+	"github.com/CGSG-2021-AE4/tomestobot/internal/bot/session"
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
 	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"

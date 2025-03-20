@@ -5,8 +5,9 @@ import (
 
 	"os"
 	"strconv"
-	"tomestobot/internal/bot"
-	"tomestobot/internal/bx"
+
+	"github.com/CGSG-2021-AE4/tomestobot/internal/bot"
+	"github.com/CGSG-2021-AE4/tomestobot/internal/bx"
 
 	"github.com/charmbracelet/log"
 )

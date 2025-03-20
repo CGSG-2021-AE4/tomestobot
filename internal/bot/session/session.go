@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"tomestobot/api"
-	"tomestobot/pkg/gobx/bxtypes"
+
+	"github.com/CGSG-2021-AE4/tomestobot/api"
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
 	"github.com/charmbracelet/log"
 	tele "gopkg.in/telebot.v4"

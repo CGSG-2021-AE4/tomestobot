@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"tomestobot/api"
+
+	"github.com/CGSG-2021-AE4/tomestobot/api"
 
 	"github.com/charmbracelet/log"
 )

@@ -1,4 +1,4 @@
-module tomestobot
+module github.com/CGSG-2021-AE4/tomestobot
 
 go 1.22.5
 

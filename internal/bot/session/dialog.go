@@ -1,7 +1,7 @@
 package session
 
 import (
-	"tomestobot/api"
+	"github.com/CGSG-2021-AE4/tomestobot/api"
 )
 
 // Dialog flow handles the right order of requests

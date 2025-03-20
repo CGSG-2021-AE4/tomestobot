@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"tomestobot/pkg/gobx/bxtypes"
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
 	"resty.dev/v3"
 )
