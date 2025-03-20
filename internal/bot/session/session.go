@@ -2,7 +2,6 @@ package session
 
 import (
 	"fmt"
-	"net/http"
 	"regexp"
 	"strconv"
 	"tomestobot/api"
@@ -252,40 +251,13 @@ func (s *session) reset() {
 
 // Function that analise !my !internal errors and log/ sends report
 func (s *session) sendError(c tele.Context, err error) error {
-	addFooter, str := errorText(err)
+	addFooter, str := api.ErrorText(err)
 
-	s.logger.Warn("str", "username", c.Sender().Username)
+	s.logger.Warn(str, "username", c.Sender().Username)
 
 	if addFooter {
 		str += "\n\nДля перезапуска отправьте команду <code>/start</code>"
 	}
 
 	return c.Send(str)
-}
-
-// Styles error string
-// Returns:
-//   - do add help footer
-//   - styled error
-func errorText(err error) (bool, string) {
-	if err, ok := err.(bxtypes.ErrorResty); ok { // Resty
-		return true, fmt.Sprintf("ERROR:\n<code>resty level: %s</code>", err.Error())
-	}
-	if err, ok := err.(bxtypes.ErrorStatusCode); ok { // HTTP status code
-		return true, fmt.Sprintf("ERROR:\n<code>http status: %s</code>", http.StatusText(int(err)))
-	}
-	if err, ok := err.(bxtypes.ErrorResponse); ok { // HTTP status code
-		return true, fmt.Sprintf("ERROR:\n<code>with response: %s</code>", api.ErrorResponseText(err))
-	}
-	if err, ok := err.(api.ErrorInternal); ok { // HTTP status code
-		switch err { // Special errors
-		case api.ErrorUserNotFound:
-			return false, "Пользователь не найден."
-		case api.ErrorSeveralUsersFound:
-			return false, "Ошибка: найдено несколько пользователей"
-		}
-		return true, fmt.Sprintf("ERROR:\n<code>internal level: %s</code>", api.ErrorInternalText(err))
-	}
-
-	return true, fmt.Sprintf("ERROR:\n<code>unknown level: %s</code>", err.Error())
 }

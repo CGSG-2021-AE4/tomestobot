@@ -46,6 +46,7 @@ func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
 }
 
 func (b *bxWrapper) AuthUserByPhone(phone string) (api.BxUser, error) {
+
 	// Make request
 	resp, err := b.client.Do(
 		"user.get",

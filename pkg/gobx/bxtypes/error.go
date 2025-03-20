@@ -13,7 +13,6 @@ type ErrorStatusCode int // When code is >=400
 // Errors for future use
 
 type ErrorResponse int // Errors with response like parsing etc.
-type ErrorInternal int // My internal errors e.g. no user found
 
 // error interface implementation
 
@@ -27,8 +26,4 @@ func (code ErrorStatusCode) Error() string {
 
 func (code ErrorResponse) Error() string {
 	return fmt.Sprintf("response %d", int(code))
-}
-
-func (code ErrorInternal) Error() string {
-	return fmt.Sprintf("internal %d", int(code))
 }

@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"tomestobot/api"
@@ -147,14 +148,23 @@ func (b *bot) onContact(c tele.Context) error {
 	if !b.sessions.Exist(c.Sender().ID) {
 		// Session does not exist so we auth
 
+		// Clear messages anyway - differs on desk and mobile versions (ReplyTo would be nil on mobile)
+		// b.bot.Delete(c.Message().ReplyTo)
+		// b.bot.Delete(c.Message())
+
+		b.logger.Debug(c.Message().Contact)
 		// Try to auth
 		if err := b.tryAuthByPhone(c); err != nil {
-			return fmt.Errorf("try auth by phone: %w", err)
+			// Other error
+			b.logger.Debug("send authe rror")
+			footer, str := api.ErrorText(err)
+			b.logger.Warn(str, "username", c.Sender().Username)
+			if footer {
+				str += "\n\nДля перезапуска отправьте команду <code>/start</code>"
+			}
+			return c.Send(str)
 		}
 
-		// Clear messages
-		b.bot.Delete(c.Message().ReplyTo)
-		b.bot.Delete(c.Message())
 		if err := c.Send("Авторизация прошла успешно."); err != nil {
 			return fmt.Errorf("success authed msg send: %w", err)
 		}
@@ -175,7 +185,7 @@ func (b *bot) tryAuthById(c tele.Context) (bool, error) {
 	if wok { // id exists in the list of familiar users and session does not exist
 		u, err := b.bx.AuthUserById(bxtypes.Id(bxId))
 		if err != nil {
-			return true, fmt.Errorf("auth user by id: %w", err)
+			return true, err
 		}
 		// Auth is successful
 		b.logger.Debug("user authed by id", "username", c.Sender().Username)
@@ -194,13 +204,16 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 
 	// Validate message
 	if c.Message().Contact == nil {
-		return fmt.Errorf("check user by phone: message does not contain contact info")
+		return api.ErrorNoContactInMsg
 	}
 	// Do auth
 	b.logger.Debug("bx log by phone")
-	u, err := b.bx.AuthUserByPhone(c.Message().Contact.PhoneNumber)
+
+	phoneNumber := fixPhoneNumber(c.Message().Contact.PhoneNumber)
+	b.logger.Debug(phoneNumber)
+	u, err := b.bx.AuthUserByPhone(phoneNumber)
 	if err != nil {
-		return fmt.Errorf("auth user by phone: %w", err)
+		return err
 	}
 	b.logger.Debug("ok")
 
@@ -215,4 +228,26 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	b.sessions.Start(tgId, u)
 
 	return nil
+}
+
+// Fixes phone number because telegram provide it in different style
+// Even on mobile it differes
+func fixPhoneNumber(in string) string {
+	str := in
+
+	// Remove all symbols but numbers
+	str = strings.ReplaceAll(str, "(", "")
+	str = strings.ReplaceAll(str, ")", "")
+	str = strings.ReplaceAll(str, "-", "")
+	str = strings.ReplaceAll(str, "+", "")
+	str = strings.ReplaceAll(str, " ", "")
+
+	// Add plus if it is not 8
+	if len(str) < 10 { // Definetely is not a phone number
+		return str
+	}
+	if str[0] != '8' {
+		return "+" + str
+	}
+	return str
 }
