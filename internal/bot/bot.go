@@ -32,6 +32,9 @@ type bot struct {
 
 	idStore  api.UsersIdStore   // Store of familiar users' IDs, so they do not have to share their contact every time
 	sessions api.SessionManager // Manages sessions
+
+	contactRequestMsgs map[int64]tele.Editable // Map of contact request messages for deletion and this way hiding inline keyboard
+	// Is neede because somehow telegram replyTo value is nil on phones... why...
 }
 
 func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
@@ -63,6 +66,8 @@ func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
 
 		idStore:  NewJsonUsersIdStore(logger, os.Getenv("ID_STORE_FILE")),
 		sessions: session.NewManager(logger, mainGroup),
+
+		contactRequestMsgs: map[int64]tele.Editable{},
 	}
 
 	if err := b.setupEndpoints(); err != nil {
@@ -139,7 +144,12 @@ func (b *bot) reqContact(c tele.Context) error {
 	r := &tele.ReplyMarkup{ResizeKeyboard: true}
 	r.Reply(r.Row(r.Contact("Предоставить номер")))
 
-	return c.Send(`Для авторизыации предоставьте номер телефона.(кнопка "Предоставить номер")`, r)
+	msg, err := b.bot.Send(c.Sender(), `Для авторизыации предоставьте номер телефона.(кнопка "Предоставить номер")`, r)
+	if err != nil {
+		return err
+	}
+	b.contactRequestMsgs[c.Sender().ID] = msg // Save msg for future deletion
+	return nil
 }
 
 // OnContact endpoint callback
@@ -149,8 +159,15 @@ func (b *bot) onContact(c tele.Context) error {
 		// Session does not exist so we auth
 
 		// Clear messages anyway - differs on desk and mobile versions (ReplyTo would be nil on mobile)
-		// b.bot.Delete(c.Message().ReplyTo)
-		// b.bot.Delete(c.Message())
+		if c.Message().ReplyTo != nil {
+			b.bot.Delete(c.Message().ReplyTo)
+		} else if msg := b.contactRequestMsgs[c.Sender().ID]; msg != nil {
+			b.bot.Delete(msg)
+			delete(b.contactRequestMsgs, c.Sender().ID)
+		}
+		if c.Message() != nil {
+			b.bot.Delete(c.Message())
+		}
 
 		b.logger.Debug(c.Message().Contact)
 		// Try to auth
