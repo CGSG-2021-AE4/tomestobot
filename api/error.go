@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 )
@@ -75,12 +76,30 @@ func ErrorText(err error) (bool, string) {
 	if err, ok := err.(ErrorInternal); ok { // HTTP status code
 		switch err { // Special errors
 		case ErrorUserNotFound:
-			return false, "Пользователь не найден."
+			return false, "Пользователь с таким номером не найден."
 		case ErrorSeveralUsersFound:
-			return false, "Ошибка: найдено несколько пользователей."
+			return false, "Ошибка: в системе зарегистрировано несколько пользователей с таким номером, обратитесь к администрации."
 		}
 		return true, fmt.Sprintf("ERROR:\n<code>internal level: %s</code>", ErrorInternalText(err))
 	}
 
 	return true, fmt.Sprintf("ERROR:\n<code>unknown level: %s</code>", err.Error())
+}
+
+// Global flags
+// Like env var but with boolean type
+// The easiest and not error prone way
+
+// By default logs only warnings
+
+// Enables debug logs
+var EnableDebugLogs = false
+
+// Enables full resty requests logs - separate var because these logs are very big
+var EnableRestyLogs = false
+
+// Setups this variable
+func SetupGlobalFlags() {
+	EnableDebugLogs = os.Getenv("ENABLE_DEBUG_LOGS") == "true"
+	EnableRestyLogs = os.Getenv("ENABLE_RESTY_LOGS") == "true"
 }

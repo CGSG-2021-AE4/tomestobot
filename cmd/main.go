@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bot"
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bx"
 
@@ -13,7 +14,9 @@ import (
 )
 
 func main() {
-	if os.Getenv("FULL_LOGS") != "" {
+	api.SetupGlobalFlags() // Setups some env flags
+
+	if api.EnableDebugLogs {
 		log.SetLevel(log.DebugLevel)
 	}
 
@@ -31,7 +34,10 @@ func mainRun() error {
 
 	// Create bx wrapper
 	bxLogger := log.NewWithOptions(os.Stdout, log.Options{Prefix: "BX"})
-	bxLogger.SetLevel(log.DebugLevel)
+	if api.EnableDebugLogs {
+		bxLogger.SetLevel(log.DebugLevel)
+	}
+
 	bxDescr := bx.BxDescriptor{
 		BxDomain: os.Getenv("BX_DOMAIN"),
 		BxUserId: userId,
@@ -44,7 +50,10 @@ func mainRun() error {
 
 	// Create bot
 	botLogger := log.NewWithOptions(os.Stdout, log.Options{Prefix: "TG"})
-	botLogger.SetLevel(log.DebugLevel)
+	if api.EnableDebugLogs {
+		botLogger.SetLevel(log.DebugLevel)
+	}
+
 	botDescr := bot.BotDescriptor{
 		TgBotToken: os.Getenv("TG_TOKEN"),
 		Bx:         bx,

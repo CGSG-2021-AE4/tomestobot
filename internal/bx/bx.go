@@ -36,8 +36,7 @@ func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
 	c := bxclient.New(descr.BxDomain, descr.BxUserId, descr.BxHook)
 
 	// For debug
-	// c.SetInsecureSSL(true)
-	// c.SetDebug(true)
+	c.SetDebug(api.EnableRestyLogs)
 
 	return &bxWrapper{
 		logger: logger,
