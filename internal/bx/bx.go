@@ -2,13 +2,13 @@ package bx
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxclient"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
-	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -21,12 +21,12 @@ type BxDescriptor struct {
 }
 
 type bxWrapper struct {
-	logger *log.Logger
+	logger *slog.Logger
 
 	client bxclient.BxClient
 }
 
-func New(logger *log.Logger, descr BxDescriptor) (api.BxWrapper, error) {
+func New(logger *slog.Logger, descr BxDescriptor) (api.BxWrapper, error) {
 	// Validate descriptor
 	if err := validate.Struct(descr); err != nil {
 		return nil, fmt.Errorf("bx wrapper descriptor validation: %w", err)

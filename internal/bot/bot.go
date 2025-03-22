@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bot/session"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
-	"github.com/charmbracelet/log"
 	"github.com/go-playground/validator/v10"
 	tele "gopkg.in/telebot.v4"
 	"gopkg.in/telebot.v4/middleware"
@@ -24,7 +24,7 @@ type BotDescriptor struct {
 }
 
 type bot struct {
-	logger *log.Logger
+	logger *slog.Logger
 
 	bot       *tele.Bot     // Telegram bot API wrapper
 	mainGroup *tele.Group   // Group for main handlers - is neede because I do not need to apply session middle for OnContact endpoint
@@ -37,7 +37,7 @@ type bot struct {
 	// Is neede because somehow telegram replyTo value is nil on phones... why...
 }
 
-func New(logger *log.Logger, descr BotDescriptor) (api.Bot, error) {
+func New(logger *slog.Logger, descr BotDescriptor) (api.Bot, error) {
 	// Validate descriptor
 	if err := validate.Struct(descr); err != nil {
 		return nil, fmt.Errorf("bot descriptor validation: %w", err)
@@ -169,7 +169,7 @@ func (b *bot) onContact(c tele.Context) error {
 			b.bot.Delete(c.Message())
 		}
 
-		b.logger.Debug(c.Message().Contact)
+		// b.logger.Debug(c.Message().Contact)
 		// Try to auth
 		if err := b.tryAuthByPhone(c); err != nil {
 			// Other error
@@ -239,7 +239,7 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	// Save user
 	b.idStore.Set(tgId, int64(u.Get().Id))
 	if err := b.idStore.Save(); err != nil {
-		b.logger.Warn(err)
+		b.logger.Warn(err.Error())
 	}
 	// Create session
 	b.sessions.Start(tgId, u)

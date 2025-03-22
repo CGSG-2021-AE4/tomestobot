@@ -2,18 +2,18 @@ package session
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
-	"github.com/charmbracelet/log"
 	tele "gopkg.in/telebot.v4"
 )
 
 type session struct {
-	logger *log.Logger
+	logger *slog.Logger
 	group  *tele.Group // Group for sessions' endpoints
 
 	// tgID   int64
@@ -56,16 +56,16 @@ func (s *session) onListDeals(c tele.Context) error {
 	}
 	defer s.flow.Done()
 
-	s.logger.Debug("on list deals", "username", c.Sender().Username)
+	s.logger.Debug("on list deals")
 
 	// Get deals
 	deals, err := s.bxUser.ListDeals()
 	if err != nil {
-		s.logger.Warn("list deals error", "username", c.Sender().Username, "err", err.Error())
+		s.logger.Warn("list deals error", "err", err.Error())
 		return s.sendError(c, err)
 	}
 	s.deals = deals // Save deals
-	s.logger.Debug(deals)
+	// s.logger.Debug(deals)
 
 	// Case when no deals found
 	if len(deals) == 0 {
@@ -117,7 +117,7 @@ func (s *session) onDealActions(c tele.Context) error {
 		}
 		s.deal = s.deals[i]
 	}
-	s.logger.Debug(s.deal)
+	// s.logger.Debug(s.deal)
 
 	// Create buttons
 	menu := &tele.ReplyMarkup{}
@@ -155,12 +155,12 @@ func (s *session) onAddComment(c tele.Context) error {
 		return s.sendError(c, err)
 	}
 	if s.flow.Get() != DialogAddComment || s.flow.IsDone() { // Means it is just text - not for comment
-		s.logger.Warn("got raw text outside comment", "username", c.Sender().Username)
+		s.logger.Warn("got raw text outside comment")
 		return c.Send("DEBUG  WARNING:\nraw text messages work only while adding comment\n\nFor menu type <code>/start</code>") // DEBUG
 	}
 	defer s.flow.Done()
 
-	s.logger.Debug("onAddComment", c.Text())
+	s.logger.Debug("onAddComment", "msg: ", c.Text())
 	commentId, err := s.bxUser.AddCommentToDeal(s.deal.Id, c.Text())
 	if err != nil {
 		return s.sendError(c, err)
@@ -263,7 +263,7 @@ func (s *session) reset() {
 func (s *session) sendError(c tele.Context, err error) error {
 	addFooter, str := api.ErrorText(err)
 
-	s.logger.Warn(str, "username", c.Sender().Username)
+	s.logger.Warn(str)
 
 	if addFooter {
 		str += "\n\nДля перезапуска отправьте команду <code>/start</code>"

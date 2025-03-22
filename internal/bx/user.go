@@ -1,8 +1,6 @@
 package bx
 
 import (
-	"github.com/charmbracelet/log"
-
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxclient"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
@@ -62,8 +60,6 @@ func (u *bxUser) AddCommentToDeal(dealId bxtypes.Id, comment string) (bxtypes.Id
 	if !ok {
 		return 0, api.ErrorParseResponse
 	}
-
-	log.Print(res.Result)
 
 	return bxtypes.Id(res.Result), nil
 }

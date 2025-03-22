@@ -3,34 +3,33 @@ package bot
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
-
-	"github.com/charmbracelet/log"
 )
 
 // JSON Implementation for users id store
 
 type jsonUsersIdStore struct {
-	logger *log.Logger
+	logger *slog.Logger
 
 	filename string          // Storage filename
 	ids      map[int64]int64 // Map where keys are tgIds, values are bxIds
 }
 
-func NewJsonUsersIdStore(logger *log.Logger, filename string) api.UsersIdStore {
+func NewJsonUsersIdStore(logger *slog.Logger, filename string) api.UsersIdStore {
 	// By default they are empty but we will fill them from file if no errors occurs
 	ids := map[int64]int64{}
 
 	// Read file
 	if data, err := os.ReadFile(filename); err != nil {
-		logger.Warnf("Error while trying to read users id json file: %s\nWill create a new file", err.Error())
+		logger.Warn(fmt.Sprintf("Error while trying to read users id json file: %s\nWill create a new file", err.Error()))
 	} else {
 		// Parsing file
 		// File contains of map[int64]int64 - ids
 		if err := json.Unmarshal(data, &ids); err != nil {
-			logger.Warnf("Error while trying to parse users id json file: %s\nWill create a new file", err.Error())
+			logger.Warn(fmt.Sprintf("Error while trying to parse users id json file: %s\nWill create a new file", err.Error()))
 		}
 	}
 	return &jsonUsersIdStore{
@@ -52,7 +51,7 @@ func (s *jsonUsersIdStore) Get(tgId int64) (int64, bool) {
 func (s *jsonUsersIdStore) Save() (outErr error) {
 	defer func() {
 		if outErr != nil {
-			s.logger.Warn(outErr)
+			s.logger.Warn("Saving users json: " + outErr.Error())
 		}
 	}()
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 
 	"os"
 	"strconv"
@@ -9,19 +10,14 @@ import (
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bot"
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bx"
-
-	"github.com/charmbracelet/log"
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/log"
 )
 
 func main() {
 	api.SetupGlobalFlags() // Setups some env flags
 
-	if api.EnableDebugLogs {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	if err := mainRun(); err != nil {
-		log.Errorf("Main finished with error: %s", err.Error())
+		slog.Error("Main finished with error", "err", err.Error())
 	}
 }
 
@@ -32,33 +28,32 @@ func mainRun() error {
 		return fmt.Errorf("invalid user id env variable: %w", err)
 	}
 
-	// Create bx wrapper
-	bxLogger := log.NewWithOptions(os.Stdout, log.Options{Prefix: "BX"})
+	// Setup logger
+	logsLevel := slog.LevelInfo
 	if api.EnableDebugLogs {
-		bxLogger.SetLevel(log.DebugLevel)
+		logsLevel = slog.LevelDebug
 	}
+	logger := slog.New(log.NewLogger(log.NewConsoleLogOutput(true), logsLevel))
+
+	// Create bx wrapper
 
 	bxDescr := bx.BxDescriptor{
 		BxDomain: os.Getenv("BX_DOMAIN"),
 		BxUserId: userId,
 		BxHook:   os.Getenv("BX_HOOK"),
 	}
-	bx, err := bx.New(bxLogger, bxDescr)
+	bx, err := bx.New(logger.WithGroup("BX"), bxDescr)
 	if err != nil {
 		return fmt.Errorf("bx creation")
 	}
 
 	// Create bot
-	botLogger := log.NewWithOptions(os.Stdout, log.Options{Prefix: "TG"})
-	if api.EnableDebugLogs {
-		botLogger.SetLevel(log.DebugLevel)
-	}
 
 	botDescr := bot.BotDescriptor{
 		TgBotToken: os.Getenv("TG_TOKEN"),
 		Bx:         bx,
 	}
-	bot, err := bot.New(botLogger, botDescr)
+	bot, err := bot.New(logger.WithGroup("TG"), botDescr)
 	if err != nil {
 		return fmt.Errorf("new bot: %w", err)
 	}

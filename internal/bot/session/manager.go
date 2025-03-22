@@ -1,22 +1,23 @@
 package session
 
 import (
+	"log/slog"
+
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
-	"github.com/charmbracelet/log"
 	tele "gopkg.in/telebot.v4"
 )
 
 // Manages start/stop of sessions
 type sessionManager struct {
-	logger *log.Logger
+	logger *slog.Logger
 	group  *tele.Group
 
 	users map[int64]*session
 }
 
-func NewManager(logger *log.Logger, group *tele.Group) api.SessionManager {
+func NewManager(logger *slog.Logger, group *tele.Group) api.SessionManager {
 	m := &sessionManager{
 		logger: logger,
 		group:  group,
@@ -43,7 +44,7 @@ func (m *sessionManager) Start(tgId int64, u api.BxUser) api.Session {
 		return s
 	}
 	s := &session{
-		logger: m.logger,
+		logger: m.logger.With("tgId", tgId),
 		group:  m.group,
 
 		bxUser: u,
