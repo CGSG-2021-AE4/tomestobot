@@ -10,6 +10,8 @@ import (
 
 // Here are request body data structures
 
+// User
+
 type User struct {
 	Id       Id     `json:"ID"`
 	Name     string `json:"NAME"`
@@ -21,6 +23,8 @@ var NilUser = User{
 	Name:     "",
 	LastName: "",
 }
+
+// Deal
 
 type Deal struct {
 	Id         Id     `json:"ID"`
@@ -36,6 +40,32 @@ var NilDeal = Deal{
 	TypeId:     "",
 	CategoryId: "",
 	StageId:    "",
+}
+
+// Deal stages
+// Now only constants
+const (
+	DealStageNew               = "C1:NEW"
+	DealStagePreparation       = "C1:PREPARATION"
+	DealStageGetDecision       = "C1:9"
+	DealStagePrepaymentInvoice = "C1:PREPAYMENT_INVOICE"
+	DealStageExecuting         = "C1:EXECUTING"
+)
+
+func DealStageText(str string) string {
+	switch str {
+	case DealStageNew:
+		return "Новая сделка"
+	case DealStagePreparation:
+		return "Сделать предложение"
+	case DealStageGetDecision:
+		return "Получить решение"
+	case DealStagePrepaymentInvoice:
+		return "Получить анкету"
+	case DealStageExecuting:
+		return "Получить договор"
+	}
+	return str // Default case if is is unknown
 }
 
 // Task status type

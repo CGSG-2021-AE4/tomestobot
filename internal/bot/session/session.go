@@ -80,6 +80,15 @@ func (s *session) onListDeals(c tele.Context) error {
 	btns := []tele.Row{}
 	menu := &tele.ReplyMarkup{}
 	for i, d := range deals {
+		// Check for necessary stages
+		if d.StageId != bxtypes.DealStageNew &&
+			d.StageId != bxtypes.DealStagePreparation &&
+			d.StageId != bxtypes.DealStageGetDecision &&
+			d.StageId != bxtypes.DealStagePrepaymentInvoice &&
+			d.StageId != bxtypes.DealStageExecuting {
+			s.logger.Debug("Culled deal with stage - " + d.StageId)
+			continue
+		}
 		btn := menu.Data(d.Title, "selectDeal", strconv.Itoa(i)) // Attach index of deal in deals array
 		s.group.Handle(&btn, s.onDealActions)
 		btns = append(btns, menu.Row(btn))
@@ -125,7 +134,7 @@ func (s *session) onDealActions(c tele.Context) error {
 		menu.Row(backBtn),
 	)
 
-	return c.Send(fmt.Sprintf("Сделка: <i>%s</i>\nСтатус: <i>%s</i>\n\nВыберете действие:", s.deal.Title, s.deal.StageId), menu)
+	return c.Send(fmt.Sprintf("Сделка: <i>%s</i>\nСтатус: <i>%s</i>\n\nВыберете действие:", s.deal.Title, bxtypes.DealStageText(s.deal.StageId)), menu)
 }
 
 // Asks to write a coomment
