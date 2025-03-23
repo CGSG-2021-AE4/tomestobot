@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"os"
 	"strconv"
@@ -54,7 +55,7 @@ func mainRun() error {
 	botDescr := bot.BotDescriptor{
 		TgBotToken:     os.Getenv("TG_TOKEN"),
 		Bx:             bx,
-		AdminWhitelist: []string{"baton364_3"},
+		AdminWhitelist: strings.Split(os.Getenv("ADMIN_WHITELIST"), " "),
 	}
 	bot, err := bot.New(logger.WithGroup("TG"), botDescr)
 	if err != nil {
