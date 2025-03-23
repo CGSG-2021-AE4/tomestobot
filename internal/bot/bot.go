@@ -91,6 +91,23 @@ func New(logger *slog.Logger, descr BotDescriptor) (api.Bot, error) {
 }
 
 func (b *bot) Start() error {
+	// Try to add admins for logs
+	// 	for _, username := range b.adminWhitelist {
+	// 		chat, err := b.bot.ChatByUsername(username)
+	// 		if err != nil {
+	// 			b.logger.Warn(fmt.Sprintf("get admin chat by username: %s", err.Error()))
+	// 			continue
+	// 		}
+	// 		b.output.Add(chat)
+	// 	}
+	// chat, err := b.bot.ChatByID()
+	// if err != nil {
+	// 	b.logger.Warn(fmt.Sprintf("get admin chat by username: %s", err.Error()))
+	// } else {
+	// 	b.output.Add(chat)
+	// }
+	// Does not work...
+
 	b.logger.Debug("bot started")
 	b.bot.Start()
 	b.logger.Debug("bot ended")
@@ -112,7 +129,8 @@ func (b *bot) setupEndpoints() error {
 	}))
 
 	// Contact for auth
-	b.bot.Handle(tele.OnContact, b.onContact) // The method is the only one not in auth group!!!
+	b.bot.Handle(tele.OnContact, b.onContact)  // The method is not in auth group!!!
+	b.bot.Handle("/start_logs", b.onStartLogs) // The method is not in auth group!!!
 
 	b.mainGroup.Handle("/start", func(c tele.Context) error {
 		// If user reached this endpoint - session exists
@@ -159,6 +177,7 @@ func (b *bot) sessionMiddle(next tele.HandlerFunc) tele.HandlerFunc {
 // Requests contact from user
 func (b *bot) reqContact(c tele.Context) error {
 	// Setup reply markup
+
 	r := &tele.ReplyMarkup{ResizeKeyboard: true}
 	r.Reply(r.Row(r.Contact("Предоставить номер")))
 
@@ -208,6 +227,18 @@ func (b *bot) onContact(c tele.Context) error {
 
 	b.logger.Warn("got on contact message but user is authorised")
 	return nil
+}
+
+// Checks if this user is allowed to receive logs he will
+// Should be call every time after bot restart
+func (b *bot) onStartLogs(c tele.Context) error {
+	// Check if is admin add to tg output
+	if slices.Contains(b.adminWhitelist, c.Sender().Username) {
+		b.logger.Debug("add admin", "username", c.Sender().Username)
+		b.output.Add(c.Chat())
+		return c.Send("Авторизация успешна.")
+	}
+	return c.Send("Отказ в доступе: вас нет в списке.")
 }
 
 // Checks if user is familiar(we know his vx id) and if session does not exist it creates it
@@ -268,12 +299,7 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 // Is called when user was successfully authorised
 func (b *bot) onUserAuth(c tele.Context) {
 	// Logs of course
-	b.logger.Debug("user authed", "username", c.Sender().Username)
-	// Check if is admin add to tg output
-	if slices.Contains(b.adminWhitelist, c.Sender().Username) {
-		b.logger.Debug("add admin", "username", c.Sender().Username)
-		b.output.Add(c.Sender())
-	}
+	b.logger.Debug("user authed", "username", c.Sender().Username, "tgId", c.Sender().ID)
 }
 
 // Fixes phone number because telegram provide it in different style

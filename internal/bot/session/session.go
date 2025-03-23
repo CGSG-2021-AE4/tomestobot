@@ -61,7 +61,6 @@ func (s *session) onListDeals(c tele.Context) error {
 	// Get deals
 	deals, err := s.bxUser.ListDeals()
 	if err != nil {
-		s.logger.Warn("list deals error", "err", err.Error())
 		return s.sendError(c, err)
 	}
 	s.deals = deals // Save deals

@@ -47,7 +47,7 @@ func coloredLabelByLevel(l slog.Level) string {
 }
 
 func printAttr(a slog.Attr) bool {
-	fmt.Print(a.Key + "=" + a.Value.String())
+	fmt.Print(a.Key + "=" + a.Value.String() + " ")
 	return true
 }
 
