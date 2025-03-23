@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/internal/bot/session"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/log"
 
 	"github.com/go-playground/validator/v10"
 	tele "gopkg.in/telebot.v4"
@@ -21,20 +23,29 @@ var validate = validator.New(validator.WithRequiredStructEnabled())
 type BotDescriptor struct {
 	TgBotToken string        `validate:"required"`
 	Bx         api.BxWrapper `validate:"required"`
+
+	AdminWhitelist []string `validate:"required"`
 }
 
 type bot struct {
 	logger *slog.Logger
 
+	// Base
 	bot       *tele.Bot     // Telegram bot API wrapper
 	mainGroup *tele.Group   // Group for main handlers - is neede because I do not need to apply session middle for OnContact endpoint
 	bx        api.BxWrapper // Bitrix wrapper
 
+	// User/session managing
 	idStore  api.UsersIdStore   // Store of familiar users' IDs, so they do not have to share their contact every time
 	sessions api.SessionManager // Manages sessions
 
+	// Dynamic data
 	contactRequestMsgs map[int64]tele.Editable // Map of contact request messages for deletion and this way hiding inline keyboard
-	// Is neede because somehow telegram replyTo value is nil on phones... why...
+	// Is needed because somehow telegram replyTo value is nil on phones... why...
+
+	// Tg logging
+	output         *log.TgOutput // For tg logging
+	adminWhitelist []string      // Contains list of users that will get these logs
 }
 
 func New(logger *slog.Logger, descr BotDescriptor) (api.Bot, error) {
@@ -68,6 +79,9 @@ func New(logger *slog.Logger, descr BotDescriptor) (api.Bot, error) {
 		sessions: session.NewManager(logger, mainGroup),
 
 		contactRequestMsgs: map[int64]tele.Editable{},
+
+		output:         log.NewTgOutput(telebot),
+		adminWhitelist: descr.AdminWhitelist,
 	}
 
 	if err := b.setupEndpoints(); err != nil {
@@ -81,6 +95,10 @@ func (b *bot) Start() error {
 	b.bot.Start()
 	b.logger.Debug("bot ended")
 	return nil
+}
+
+func (b *bot) GetLogsOutput() log.Output {
+	return b.output
 }
 
 func (b *bot) setupEndpoints() error {
@@ -205,7 +223,7 @@ func (b *bot) tryAuthById(c tele.Context) (bool, error) {
 			return true, err
 		}
 		// Auth is successful
-		b.logger.Debug("user authed by id", "username", c.Sender().Username)
+		b.onUserAuth(c)
 		// Create session
 		b.sessions.Start(tgId, u)
 
@@ -235,7 +253,7 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	b.logger.Debug("ok")
 
 	// Auth is successful
-	b.logger.Debug("user authed by phone", "username", c.Sender().Username)
+	b.onUserAuth(c)
 	// Save user
 	b.idStore.Set(tgId, int64(u.Get().Id))
 	if err := b.idStore.Save(); err != nil {
@@ -245,6 +263,17 @@ func (b *bot) tryAuthByPhone(c tele.Context) error {
 	b.sessions.Start(tgId, u)
 
 	return nil
+}
+
+// Is called when user was successfully authorised
+func (b *bot) onUserAuth(c tele.Context) {
+	// Logs of course
+	b.logger.Debug("user authed", "username", c.Sender().Username)
+	// Check if is admin add to tg output
+	if slices.Contains(b.adminWhitelist, c.Sender().Username) {
+		b.logger.Debug("add admin", "username", c.Sender().Username)
+		b.output.Add(c.Sender())
+	}
 }
 
 // Fixes phone number because telegram provide it in different style

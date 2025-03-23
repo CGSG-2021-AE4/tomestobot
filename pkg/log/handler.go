@@ -7,7 +7,7 @@ import (
 
 // Type that implements handler interface and logging itself and storing messages
 type logsHandler struct {
-	output LogsOutput
+	output Output
 	level  slog.Level
 
 	groups []string
@@ -45,7 +45,7 @@ func (h *logsHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
-func NewLogger(output LogsOutput, level slog.Level) slog.Handler {
+func NewHandler(output Output, level slog.Level) slog.Handler {
 	return &logsHandler{
 		output: output,
 		level:  level,

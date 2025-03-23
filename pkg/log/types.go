@@ -5,6 +5,6 @@ import (
 	"log/slog"
 )
 
-type LogsOutput interface {
+type Output interface {
 	Handle(ctx context.Context, groups []string, record slog.Record) error
 }

@@ -1,11 +1,14 @@
 package api
 
 import (
+	"github.com/CGSG-2021-AE4/tomestobot/pkg/log"
 	tele "gopkg.in/telebot.v4"
 )
 
 type Bot interface {
 	Start() error
+
+	GetLogsOutput() log.Output // For tg logging
 }
 
 type Session interface {

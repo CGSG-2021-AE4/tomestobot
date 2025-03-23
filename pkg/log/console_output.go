@@ -80,7 +80,7 @@ func (c coloredConsoleLogOutput) Handle(ctx context.Context, groups []string, re
 	return nil
 }
 
-func NewConsoleLogOutput(enableColors bool) LogsOutput {
+func NewConsoleLogOutput(enableColors bool) Output {
 	if enableColors {
 		return coloredConsoleLogOutput{}
 	}

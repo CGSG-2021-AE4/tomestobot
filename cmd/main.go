@@ -33,7 +33,9 @@ func mainRun() error {
 	if api.EnableDebugLogs {
 		logsLevel = slog.LevelDebug
 	}
-	logger := slog.New(log.NewLogger(log.NewConsoleLogOutput(true), logsLevel))
+	defferedOutput := log.NewDefferedOutput()
+	output := log.NewMultiOutput(log.NewConsoleLogOutput(true), defferedOutput)
+	logger := slog.New(log.NewHandler(output, logsLevel))
 
 	// Create bx wrapper
 
@@ -50,13 +52,17 @@ func mainRun() error {
 	// Create bot
 
 	botDescr := bot.BotDescriptor{
-		TgBotToken: os.Getenv("TG_TOKEN"),
-		Bx:         bx,
+		TgBotToken:     os.Getenv("TG_TOKEN"),
+		Bx:             bx,
+		AdminWhitelist: []string{"baton364_3"},
 	}
 	bot, err := bot.New(logger.WithGroup("TG"), botDescr)
 	if err != nil {
 		return fmt.Errorf("new bot: %w", err)
 	}
+
+	// Setup tg logging
+	defferedOutput.Output = bot.GetLogsOutput()
 	return bot.Start()
 }
 
