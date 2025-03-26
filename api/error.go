@@ -18,9 +18,8 @@ const (
 	ErrorNoContactInMsg
 	ErrorInvalidPhoneNumber
 
-	// Dialog
-	ErrorDialogInvalidOrder
-	ErrorDialogPrevStateNotComplete
+	// Session
+	ErrorInvalidBtnPayload
 )
 
 func ErrorInternalText(err ErrorInternal) string {
@@ -31,13 +30,10 @@ func ErrorInternalText(err ErrorInternal) string {
 		return "SeveralUsersFound"
 	case ErrorNoContactInMsg:
 		return "ErrorNoContactInMsg"
+	case ErrorInvalidBtnPayload:
+		return "ErrorInvalidBtnPayload"
 	case ErrorInvalidPhoneNumber:
 		return "ErrorInvalidPhoneNumber"
-
-	case ErrorDialogInvalidOrder:
-		return "DialogInvalidOrder"
-	case ErrorDialogPrevStateNotComplete:
-		return "DialogPrevStateNotComplete"
 	}
 	return "unknown"
 }

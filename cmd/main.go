@@ -37,6 +37,7 @@ func mainRun() error {
 	defferedOutput := log.NewDefferedOutput()
 	output := log.NewMultiOutput(log.NewConsoleLogOutput(true), defferedOutput)
 	logger := slog.New(log.NewHandler(output, logsLevel))
+	slog.SetDefault(logger)
 
 	// Create bx wrapper
 

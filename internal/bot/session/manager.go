@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
-	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -12,14 +11,16 @@ import (
 // Manages start/stop of sessions
 type sessionManager struct {
 	logger *slog.Logger
+	bot    *tele.Bot
 	group  *tele.Group
 
 	users map[int64]*session
 }
 
-func NewManager(logger *slog.Logger, group *tele.Group) api.SessionManager {
+func NewManager(logger *slog.Logger, bot *tele.Bot, group *tele.Group) api.SessionManager {
 	m := &sessionManager{
 		logger: logger,
+		bot:    bot,
 		group:  group,
 
 		users: map[int64]*session{},
@@ -43,18 +44,7 @@ func (m *sessionManager) Start(tgId int64, u api.BxUser) api.Session {
 		m.logger.Warn("trying to start session that already exists", "tgId", tgId)
 		return s
 	}
-	s := &session{
-		logger: m.logger.With("tgId", tgId),
-		group:  m.group,
-
-		bxUser: u,
-
-		flow: NewDialogFlow(),
-		// Dynamic data
-		deals: []bxtypes.Deal{},
-		deal:  bxtypes.NilDeal,
-		tasks: []bxtypes.Task{},
-	}
+	s := createSession(m.logger.With("tgId", tgId), m.bot, m.group, u)
 	m.users[tgId] = s
 	return s
 }

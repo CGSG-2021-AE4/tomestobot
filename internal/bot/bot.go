@@ -76,7 +76,7 @@ func New(logger *slog.Logger, descr BotDescriptor) (api.Bot, error) {
 		bx:        descr.Bx,
 
 		idStore:  NewJsonUsersIdStore(logger, os.Getenv("ID_STORE_FILE")),
-		sessions: session.NewManager(logger, mainGroup),
+		sessions: session.NewManager(logger, telebot, mainGroup),
 
 		contactRequestMsgs: map[int64]tele.Editable{},
 
