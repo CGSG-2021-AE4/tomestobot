@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"time"
 
 	"github.com/CGSG-2021-AE4/tomestobot/api"
 	"github.com/CGSG-2021-AE4/tomestobot/pkg/gobx/bxtypes"
@@ -96,7 +97,7 @@ func (s *session) OnStart(c tele.Context) error {
 		menu.Row(listDealsBtn),
 	)
 
-	return s.ask(c, fmt.Sprintf("Здравствуйте, %s %s.\nВыберете действие.", s.bxUser.Get().Name, s.bxUser.Get().LastName), menu)
+	return s.ask(c, fmt.Sprintf("Здравствуйте, %s %s.\nВыберите действие:", s.bxUser.Get().Name, s.bxUser.Get().LastName), menu)
 }
 
 // Handles list deals message
@@ -116,10 +117,15 @@ func (s *session) onListDeals(c tele.Context) error {
 
 	// Case when no deals found
 	if len(deals) == 0 {
-		if err = c.Send("Не найдено открытых сделок."); err != nil {
-			return s.sendError(c, err)
+		msg, e := s.bot.Send(c.Sender(), "Не найдено открытых сделок.")
+		if e != nil {
+			return s.sendError(c, e)
 		}
-		return s.OnStart(c)
+		go func() {
+			time.Sleep(3 * time.Second)
+			s.bot.Delete(msg)
+		}()
+		return nil
 	}
 
 	// Prepare buttons descriptors
@@ -129,7 +135,7 @@ func (s *session) onListDeals(c tele.Context) error {
 		iBytes := make([]byte, 4)
 		binary.LittleEndian.PutUint32(iBytes, uint32(i))
 		payload := append(tagBytes[:], iBytes...)
-		s.logger.Debug(fmt.Sprint(payload))
+		// sh.logger.Debug(fmt.Sprint(payload))
 		// Add button descriptor
 		btnDescrs = append(btnDescrs, inlineBtnDescr{
 			text:    d.Title,
@@ -141,7 +147,7 @@ func (s *session) onListDeals(c tele.Context) error {
 	if err != nil {
 		s.sendError(c, err)
 	}
-	return s.ask(c, "Выберете сделку:", menu)
+	return s.ask(c, "Выберите сделку:", menu)
 }
 
 // Shows actions with select deal
@@ -187,22 +193,17 @@ func (s *session) onDealActions(c tele.Context) error {
 			handler: s.onListTasks,
 			payload: payload,
 		},
-		{
-			text:    "Назад",
-			unique:  "dealBackBtn" + deal.Id.String(),
-			handler: s.onDealActions,
-		},
 	})
 	if err != nil {
 		s.sendError(c, err)
 	}
-	return s.ask(c, fmt.Sprintf("Сделка: <i>%s</i>\nСтатус: <i>%s</i>\n\nВыберете действие:", deal.Title, bxtypes.DealStageText(deal.StageId)), menu)
+	return s.ask(c, fmt.Sprintf("<b>Сделка</b>: <i>%s</i>\n<b>Статус</b>: <i>%s</i>\n\nВыберите действие:", deal.Title, bxtypes.DealStageText(deal.StageId)), menu)
 }
 
 // Asks to write a coomment
 func (s *session) onWriteComment(c tele.Context) error {
 	// Send message
-	msg, err := s.bot.Send(c.Sender(), "Напишите коментарий:")
+	msg, err := s.bot.Send(c.Sender(), "Напишите комментарий:")
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,16 @@ func (s *session) onAddComment(c tele.Context) error {
 	// Check if it is comment or just text msg
 	if !s.waitingForComment {
 		s.logger.Debug("got text when I don't expect it")
-		return c.Send("Text msgs are not allowed")
+		defer s.bot.Delete(c.Message()) // Delete received text msg
+		msg, err := s.bot.Send(c.Chat(), "Текстовые сообщения не разрешены.")
+		if err != nil {
+			return s.sendError(c, err)
+		}
+		go func() {
+			time.Sleep(3 * time.Second)
+			s.bot.Delete(msg)
+		}()
+		return nil
 	}
 
 	// Clear previous
@@ -256,7 +266,7 @@ func (s *session) onAddComment(c tele.Context) error {
 	s.logger.Debug("Added comment", "id", commentId)
 
 	// Report status
-	if err = c.Send(fmt.Sprintf(`Коментарий "%s" Добавлен к сделке <i>%s</i>`, c.Text(), deal.Title)); err != nil {
+	if err = c.Send(fmt.Sprintf("<b>Добавлен комментарий.</b>\n\nСделка: <i>%s</i>\nКомментарий: %s", deal.Title, c.Text())); err != nil {
 		return err
 	}
 
@@ -271,7 +281,7 @@ func (s *session) onAddComment(c tele.Context) error {
 		{
 			text:    "Нет",
 			unique:  "goToStart",
-			handler: s.OnStart,
+			handler: s.OnEnd,
 		},
 	})
 	if err != nil {
@@ -282,6 +292,7 @@ func (s *session) onAddComment(c tele.Context) error {
 
 // Lists deal tasks
 func (s *session) onListTasks(c tele.Context) error {
+	s.clearPrev()
 	// Decode payload
 	s.logger.Debug(c.Data())
 	tag, err := decodeTag(c.Data())
@@ -303,10 +314,16 @@ func (s *session) onListTasks(c tele.Context) error {
 
 	// Case when no deals found
 	if len(tasks) == 0 {
-		if err = c.Send("Нет открытых задач."); err != nil {
-			return s.sendError(c, err)
+		msg, e := s.bot.Send(c.Chat(), "Нет открытых задач.")
+		if e != nil {
+			return s.sendError(c, e)
 		}
-		return s.OnStart(c)
+		// Deferred deletion
+		go func() {
+			time.Sleep(3 * time.Second)
+			s.bot.Delete(msg)
+		}()
+		return nil
 	}
 
 	// Save tasks and encode tag
@@ -332,11 +349,12 @@ func (s *session) onListTasks(c tele.Context) error {
 	if err != nil {
 		return s.sendError(c, err)
 	}
-	return s.ask(c, "Выберете задачу для завершения:", menu)
+	return s.ask(c, "Выберите задачу для завершения:", menu)
 }
 
 // Completes selected task
 func (s *session) onCompleteTask(c tele.Context) error {
+	s.clearPrev()
 	// Decode payload
 	tag, i, err := decodeTagWithI(c.Data())
 	if err != nil {
@@ -362,11 +380,24 @@ func (s *session) onCompleteTask(c tele.Context) error {
 	}
 
 	// Send report
-	if err := c.Send(fmt.Sprintf("Задача <i>%s</i> успешно завершена.", task.Title)); err != nil {
+	if err := c.Send(fmt.Sprintf("Завершена задача: <i>%s</i>\n\nСделка: <i>%s</i>", task.Title, tasksPayload.deal.Title)); err != nil {
 		return s.sendError(c, err)
 	}
 
-	return s.OnStart(c)
+	return s.OnEnd(c)
+}
+
+func (s *session) OnEnd(c tele.Context) error {
+	s.clearPrev()
+	msg, err := s.bot.Send(c.Chat(), "Спасибо.")
+	if err != nil {
+		return s.sendError(c, err)
+	}
+	go func() {
+		time.Sleep(4 * time.Second)
+		s.bot.Delete(msg)
+	}()
+	return nil
 }
 
 // Supporting functions
