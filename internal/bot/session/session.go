@@ -32,6 +32,9 @@ type session struct {
 	waitingForComment bool          // Writing comment is toggled and now I waiting for text message that will be treated like a comment
 	writeCommentMsg   tele.Editable // For future deletion
 	addCommentPayload string        // Exception - supposed to be in msg data field
+
+	// Previous request msg for deletion
+	prevMsg tele.Editable
 }
 
 // Supplement structures
@@ -83,6 +86,7 @@ func createSession(logger *slog.Logger, bot *tele.Bot, group *tele.Group, user a
 
 // Main message - may be consider as help
 func (s *session) OnStart(c tele.Context) error {
+	s.clearPrev()
 	menu := &tele.ReplyMarkup{}
 
 	listDealsBtn := menu.Data("Показать открытые сделки", "list_deals")
@@ -92,11 +96,12 @@ func (s *session) OnStart(c tele.Context) error {
 		menu.Row(listDealsBtn),
 	)
 
-	return c.Send(fmt.Sprintf("Здравствуйте, %s %s.\nВыберете действие.", s.bxUser.Get().Name, s.bxUser.Get().LastName), menu)
+	return s.ask(c, fmt.Sprintf("Здравствуйте, %s %s.\nВыберете действие.", s.bxUser.Get().Name, s.bxUser.Get().LastName), menu)
 }
 
 // Handles list deals message
 func (s *session) onListDeals(c tele.Context) error {
+	s.clearPrev()
 	s.logger.Debug("on list deals")
 
 	// Get deals
@@ -136,11 +141,12 @@ func (s *session) onListDeals(c tele.Context) error {
 	if err != nil {
 		s.sendError(c, err)
 	}
-	return c.Send("Выберете сделку:", menu)
+	return s.ask(c, "Выберете сделку:", menu)
 }
 
 // Shows actions with select deal
 func (s *session) onDealActions(c tele.Context) error {
+	s.clearPrev()
 	// Get deal of the button
 	s.logger.Debug(c.Data())
 	s.logger.Debug(fmt.Sprint([]byte(c.Data())))
@@ -190,7 +196,7 @@ func (s *session) onDealActions(c tele.Context) error {
 	if err != nil {
 		s.sendError(c, err)
 	}
-	return c.Send(fmt.Sprintf("Сделка: <i>%s</i>\nСтатус: <i>%s</i>\n\nВыберете действие:", deal.Title, bxtypes.DealStageText(deal.StageId)), menu)
+	return s.ask(c, fmt.Sprintf("Сделка: <i>%s</i>\nСтатус: <i>%s</i>\n\nВыберете действие:", deal.Title, bxtypes.DealStageText(deal.StageId)), menu)
 }
 
 // Asks to write a coomment
@@ -216,7 +222,18 @@ func (s *session) onAddComment(c tele.Context) error {
 		s.logger.Debug("got text when I don't expect it")
 		return c.Send("Text msgs are not allowed")
 	}
+
+	// Clear previous
+	s.clearPrev()
 	s.waitingForComment = false // Remove flag before any error
+	if s.writeCommentMsg != nil {
+		if err := s.bot.Delete(s.writeCommentMsg); err != nil {
+			return s.sendError(c, err)
+		}
+		s.writeCommentMsg = nil
+	}
+	defer s.bot.Delete(c.Message())
+
 	s.logger.Debug("onAddComment", "msg", c.Text())
 
 	// Decode payload
@@ -260,7 +277,7 @@ func (s *session) onAddComment(c tele.Context) error {
 	if err != nil {
 		s.sendError(c, err)
 	}
-	return c.Send("Нужно ли закрыть задачу по этой сделке?", menu)
+	return s.ask(c, "Нужно ли закрыть задачу по этой сделке?", menu)
 }
 
 // Lists deal tasks
@@ -315,7 +332,7 @@ func (s *session) onListTasks(c tele.Context) error {
 	if err != nil {
 		return s.sendError(c, err)
 	}
-	return c.Send("Выберете задачу для завершения:", menu)
+	return s.ask(c, "Выберете задачу для завершения:", menu)
 }
 
 // Completes selected task
@@ -394,4 +411,23 @@ func (s *session) sendError(c tele.Context, err error) error {
 	}
 
 	return c.Send(str)
+}
+
+// Sends message and saves it for future deletion
+func (s *session) ask(c tele.Context, what any, opts ...any) error {
+	msg, err := s.bot.Send(c.Chat(), what, opts...)
+	if err != nil {
+		return err
+	}
+	s.prevMsg = msg // Do not check if it is nil
+	return nil
+}
+
+// Deletes previous qustion message
+func (s *session) clearPrev() error {
+	if prev := s.prevMsg; prev != nil {
+		s.prevMsg = nil
+		return s.bot.Delete(prev)
+	}
+	return nil
 }
