@@ -1,7 +1,8 @@
 package session
 
 import (
-	"encoding/json"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -22,13 +23,15 @@ type session struct {
 
 	// Dynamic data
 
-	// Comment
-	waitingForComment bool // Writing comment is toggled and now I waiting for text message that will be treated like a comment
-	writeCommentMsg   tele.Editable
+	// Payload
+	deals     TaggedVar[[]bxtypes.Deal]
+	deal      TaggedVar[bxtypes.Deal]
+	dealTasks TaggedVar[tasksPayload]
 
-	// Payload is for any data that cannot be passed directly
-	// Now it is used in comment
-	payload string // String because telebot uses string
+	// Comment - the difficulty is that the msg is just text
+	waitingForComment bool          // Writing comment is toggled and now I waiting for text message that will be treated like a comment
+	writeCommentMsg   tele.Editable // For future deletion
+	addCommentPayload string        // Exception - supposed to be in msg data field
 }
 
 // Supplement structures
@@ -36,20 +39,20 @@ type session struct {
 type inlineBtnDescr struct {
 	text    string
 	unique  string
-	payload any // Will be marshalled to json later
+	payload string // Will be marshalled to json later
 }
 
 // The same descriptor but with handler function
 type inlineBtnWithHandlerDescr struct {
 	text    string
 	unique  string
-	payload any // Will be marshalled to json later
+	payload string // Will be marshalled to json later
 	handler tele.HandlerFunc
 }
 
-type taskBtnPayload struct {
-	Deal bxtypes.Deal `json:"deal"`
-	Task bxtypes.Task `json:"task"`
+type tasksPayload struct {
+	deal  bxtypes.Deal
+	tasks []bxtypes.Task
 }
 
 // Create session function
@@ -61,9 +64,13 @@ func createSession(logger *slog.Logger, bot *tele.Bot, group *tele.Group, user a
 		bxUser: user,
 
 		// Dynamic data
+		deals:     newTaggedVar[[]bxtypes.Deal](),
+		deal:      newTaggedVar[bxtypes.Deal](),
+		dealTasks: newTaggedVar[tasksPayload](),
+
 		waitingForComment: false,
 		writeCommentMsg:   nil,
-		payload:           "",
+		addCommentPayload: "",
 	}
 	// Setup some handlers
 	s.group.Handle(tele.OnText, s.onAddComment)
@@ -99,6 +106,9 @@ func (s *session) onListDeals(c tele.Context) error {
 	}
 	s.logger.Debug(fmt.Sprint(deals))
 
+	// Store deals
+	tagBytes := s.deals.Set(deals).Bytes()
+
 	// Case when no deals found
 	if len(deals) == 0 {
 		if err = c.Send("Не найдено открытых сделок."); err != nil {
@@ -109,11 +119,17 @@ func (s *session) onListDeals(c tele.Context) error {
 
 	// Prepare buttons descriptors
 	btnDescrs := []inlineBtnDescr{}
-	for _, d := range deals {
+	for i, d := range deals {
+		// Encode index
+		iBytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(iBytes, uint32(i))
+		payload := append(tagBytes[:], iBytes...)
+		s.logger.Debug(fmt.Sprint(payload))
+		// Add button descriptor
 		btnDescrs = append(btnDescrs, inlineBtnDescr{
 			text:    d.Title,
 			unique:  "dealBtn" + d.Id.String(),
-			payload: d,
+			payload: hex.EncodeToString(payload),
 		})
 	}
 	menu, err := creatInlineMenu(s.group, s.onDealActions, btnDescrs)
@@ -127,18 +143,29 @@ func (s *session) onListDeals(c tele.Context) error {
 func (s *session) onDealActions(c tele.Context) error {
 	// Get deal of the button
 	s.logger.Debug(c.Data())
+	s.logger.Debug(fmt.Sprint([]byte(c.Data())))
 
-	// Check for payload
-	if c.Data() == "" {
-		s.logger.Debug("no btn payload")
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	// Decode payload
+	tag, i, err := decodeTagWithI(c.Data())
+	if err != nil {
+		s.logger.Debug("decode tag with I err")
+		return s.sendError(c, err) // Already typed err
 	}
-	// Parse payload
-	deal := bxtypes.Deal{}
-	if err := json.Unmarshal([]byte(c.Data()), &deal); err != nil {
-		s.logger.Debug(err.Error())
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	deals, err := s.deals.Get(tag)
+	if err != nil {
+		s.logger.Debug("get deals invalid tag")
+		return s.sendError(c, err) // Already typed err
 	}
+	s.logger.Debug(fmt.Sprint(deals))
+	s.logger.Debug(fmt.Sprint(i))
+	if i >= len(deals) { // To be sure its ok
+		return s.sendError(c, fmt.Errorf("invalid deal index"))
+	}
+
+	// Save selected deal and encode tag to payload
+	deal := deals[i]
+	tagBytes := s.deal.Set(deal).Bytes()
+	payload := hex.EncodeToString(tagBytes[:])
 
 	// Create buttons
 	menu, err := creatInlineMenuWithHandler(s.group, []inlineBtnWithHandlerDescr{
@@ -146,13 +173,13 @@ func (s *session) onDealActions(c tele.Context) error {
 			text:    "Добавить коментарий",
 			unique:  "addComment" + deal.Id.String(),
 			handler: s.onWriteComment,
-			payload: c.Data(),
+			payload: payload,
 		},
 		{
 			text:    "Показать открытые задачи",
 			unique:  "listTasks" + deal.Id.String(),
 			handler: s.onListTasks,
-			payload: c.Data(),
+			payload: payload,
 		},
 		{
 			text:    "Назад",
@@ -168,11 +195,6 @@ func (s *session) onDealActions(c tele.Context) error {
 
 // Asks to write a coomment
 func (s *session) onWriteComment(c tele.Context) error {
-	// To be sure it is alright at this step
-	if c.Data() == "" {
-		s.logger.Debug("No payload")
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
-	}
 	// Send message
 	msg, err := s.bot.Send(c.Sender(), "Напишите коментарий:")
 	if err != nil {
@@ -180,7 +202,7 @@ func (s *session) onWriteComment(c tele.Context) error {
 	}
 	// Save payload
 	s.writeCommentMsg = msg
-	s.payload = c.Data()
+	s.addCommentPayload = c.Data() // Redirect payload from button
 	s.waitingForComment = true
 	return nil
 }
@@ -197,16 +219,16 @@ func (s *session) onAddComment(c tele.Context) error {
 	s.waitingForComment = false // Remove flag before any error
 	s.logger.Debug("onAddComment", "msg", c.Text())
 
-	// Check for payload
-	if s.payload == "" {
-		s.logger.Debug("no btn payload")
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	// Decode payload
+	tag, err := decodeTag(s.addCommentPayload)
+	if err != nil {
+		s.logger.Debug("decode tag with I err")
+		return s.sendError(c, err) // Already typed err
 	}
-	// Parse payload
-	deal := bxtypes.Deal{}
-	if err := json.Unmarshal([]byte(s.payload), &deal); err != nil {
-		s.logger.Debug(err.Error())
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	deal, err := s.deal.Get(tag)
+	if err != nil {
+		s.logger.Debug("get deal invalid tag")
+		return s.sendError(c, err) // Already typed err
 	}
 
 	// Add comment
@@ -227,7 +249,7 @@ func (s *session) onAddComment(c tele.Context) error {
 			text:    "Да",
 			unique:  "listTasks" + deal.Id.String(),
 			handler: s.onListTasks,
-			payload: s.payload, // Contains deal
+			payload: s.addCommentPayload, // Contains deal
 		},
 		{
 			text:    "Нет",
@@ -243,16 +265,17 @@ func (s *session) onAddComment(c tele.Context) error {
 
 // Lists deal tasks
 func (s *session) onListTasks(c tele.Context) error {
-	// Check for payload
-	if c.Data() == "" {
-		s.logger.Debug("no btn payload")
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	// Decode payload
+	s.logger.Debug(c.Data())
+	tag, err := decodeTag(c.Data())
+	if err != nil {
+		s.logger.Debug("decode tag with I err")
+		return s.sendError(c, err) // Already typed err
 	}
-	// Parse payload
-	deal := bxtypes.Deal{}
-	if err := json.Unmarshal([]byte(c.Data()), &deal); err != nil {
-		s.logger.Debug(err.Error())
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	deal, err := s.deal.Get(tag)
+	if err != nil {
+		s.logger.Debug("get deal invalid tag")
+		return s.sendError(c, err) // Already typed err
 	}
 
 	// Request tasks
@@ -266,20 +289,26 @@ func (s *session) onListTasks(c tele.Context) error {
 		if err = c.Send("Нет открытых задач."); err != nil {
 			return s.sendError(c, err)
 		}
-		return s.onDealActions(c)
+		return s.OnStart(c)
 	}
+
+	// Save tasks and encode tag
+	tagBytes := s.dealTasks.Set(tasksPayload{
+		deal:  deal,
+		tasks: tasks,
+	}).Bytes()
 
 	// Prepare buttons
 	btns := []inlineBtnDescr{}
 	r, _ := regexp.Compile("по сделке.*")
-	for _, t := range tasks {
+	for i, t := range tasks {
+		iBytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(iBytes, uint32(i))
+		payload := append(tagBytes[:], iBytes...)
 		btns = append(btns, inlineBtnDescr{
-			text:   r.ReplaceAllLiteralString(t.Title, ""),
-			unique: "selectTask" + t.Id.String(),
-			payload: taskBtnPayload{
-				Deal: deal,
-				Task: t,
-			},
+			text:    r.ReplaceAllLiteralString(t.Title, ""),
+			unique:  "selectTask" + t.Id.String(),
+			payload: hex.EncodeToString(payload),
 		})
 	}
 	menu, err := creatInlineMenu(s.group, s.onCompleteTask, btns)
@@ -291,25 +320,32 @@ func (s *session) onListTasks(c tele.Context) error {
 
 // Completes selected task
 func (s *session) onCompleteTask(c tele.Context) error {
-	// Check for payload
-	if c.Data() == "" {
-		s.logger.Debug("no btn payload")
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	// Decode payload
+	tag, i, err := decodeTagWithI(c.Data())
+	if err != nil {
+		s.logger.Debug("decode tag with I err")
+		return s.sendError(c, err) // Already typed err
 	}
-	// Parse payload
-	data := taskBtnPayload{}
-	if err := json.Unmarshal([]byte(c.Data()), &data); err != nil {
-		s.logger.Debug(err.Error())
-		return s.sendError(c, api.ErrorInvalidBtnPayload)
+	tasksPayload, err := s.dealTasks.Get(tag)
+	if err != nil {
+		s.logger.Debug("get deal tasks invalid tag")
+		return s.sendError(c, err) // Already typed err
+	}
+	s.logger.Debug(fmt.Sprint(tasksPayload))
+	s.logger.Debug(fmt.Sprint(i))
+	if i >= len(tasksPayload.tasks) { // To be sure its ok
+		return s.sendError(c, fmt.Errorf("invalid task index"))
 	}
 
+	task := tasksPayload.tasks[i]
+
 	// Make request
-	if err := s.bxUser.CompleteTask(data.Task.Id); err != nil {
+	if err := s.bxUser.CompleteTask(task.Id); err != nil {
 		return s.sendError(c, err)
 	}
 
 	// Send report
-	if err := c.Send(fmt.Sprintf("Задача <i>%s</i> успешно завершена.", data.Task.Title)); err != nil {
+	if err := c.Send(fmt.Sprintf("Задача <i>%s</i> успешно завершена.", task.Title)); err != nil {
 		return s.sendError(c, err)
 	}
 
@@ -324,13 +360,8 @@ func creatInlineMenu(group *tele.Group, handler tele.HandlerFunc, btns []inlineB
 	rows := []tele.Row{}
 	menu := &tele.ReplyMarkup{}
 	for _, b := range btns {
-		payload, err := json.Marshal(b.payload)
-		if err != nil {
-			return nil, fmt.Errorf("marshal btn payload: %w", err)
-		}
-		slog.Debug(fmt.Sprint(b.payload))
-		slog.Debug(string(payload))
-		btn := menu.Data(b.text, b.unique, string(payload)) // Attach index of deal in deals array
+		slog.Debug(b.payload)
+		btn := menu.Data(b.text, b.unique, b.payload) // Attach index of deal in deals array
 		group.Handle(&btn, handler)
 		rows = append(rows, menu.Row(btn))
 	}
@@ -344,11 +375,7 @@ func creatInlineMenuWithHandler(group *tele.Group, btns []inlineBtnWithHandlerDe
 	rows := []tele.Row{}
 	menu := &tele.ReplyMarkup{}
 	for _, b := range btns {
-		payload, err := json.Marshal(b.payload)
-		if err != nil {
-			return nil, fmt.Errorf("marshal btn payload: %w", err)
-		}
-		btn := menu.Data(b.text, b.unique, string(payload)) // Attach index of deal in deals array
+		btn := menu.Data(b.text, b.unique, b.payload) // Attach index of deal in deals array
 		group.Handle(&btn, b.handler)
 		rows = append(rows, menu.Row(btn))
 	}

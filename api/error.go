@@ -19,7 +19,10 @@ const (
 	ErrorInvalidPhoneNumber
 
 	// Session
-	ErrorInvalidBtnPayload
+	ErrorInvalidBtnPayload // Invalid payload len for ex
+
+	// Tag
+	ErrorInvalidTag
 )
 
 func ErrorInternalText(err ErrorInternal) string {
@@ -34,6 +37,8 @@ func ErrorInternalText(err ErrorInternal) string {
 		return "ErrorInvalidBtnPayload"
 	case ErrorInvalidPhoneNumber:
 		return "ErrorInvalidPhoneNumber"
+	case ErrorInvalidTag:
+		return "ErrorInvalidTag"
 	}
 	return "unknown"
 }

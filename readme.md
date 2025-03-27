@@ -13,3 +13,17 @@
 - `ENABLE_RESTY_LOGS` - enable resty level logs flag(enable if `true`)
 - `ID_STORE_FILE` - name json file for known users id storage
 - `ADMIN_WHITELIST` - list of usernames of telegram users which will receive logs(are splited only by spaces)
+
+## Some description
+### Tagged var
+Since tg allow only 64 bytes of payload I have to store dynamic data localy.
+In msg payload I leave tag(uuid) to ensure the data is valid and the one I want.
+Different handlers expect different data:
+- onStart - nothing
+- onListDeals - nothing
+- onDealActions - deals tag, id
+- onWriteComment - deal tag
+- onAddComment - deal tag(exception because I can use it's dynamic data at all)
+- onListTasks - deal tag,
+- onCompleteTask - deal tasks tag, id
+Based on what handler want it expects the first 16(or 32 in onCompleteTask case) of payload to be uuid.
